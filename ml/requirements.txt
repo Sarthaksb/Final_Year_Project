@@ -1,0 +1,34 @@
+# ML / AI dependencies
+# Install in Colab with: pip install -r ml/requirements.txt
+
+# ── Core ML ───────────────────────────────────────────────────────────────────
+torch>=2.1.0
+torchvision>=0.16.0
+timm>=0.9.12            # EfficientNet-B3 and other pretrained models
+
+# ── Data / Numerics ───────────────────────────────────────────────────────────
+numpy>=1.24.0
+pandas>=2.0.0
+Pillow>=10.0.0
+scikit-learn>=1.3.0     # train/val split, metrics, confusion matrix
+tqdm>=4.66.0            # progress bars
+
+# ── Visualisation ─────────────────────────────────────────────────────────────
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# ── Agent / LLM ───────────────────────────────────────────────────────────────
+google-generativeai>=0.5.0   # Gemini API (agent + RAG explanations)
+langchain>=0.2.0
+langchain-google-genai>=1.0.0
+langgraph>=0.1.0
+
+# ── RAG ───────────────────────────────────────────────────────────────────────
+chromadb>=0.5.0
+sentence-transformers>=2.7.0  # all-MiniLM-L6-v2 embeddings
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0    # load GEMINI_API_KEY from .env
+
+# Grad-CAM explainability
+grad-cam>=1.5.0          # pytorch-grad-cam: Grad-CAM heatmap overlays

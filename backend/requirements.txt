@@ -1,0 +1,43 @@
+# ==============================================================================
+# DermaAI Backend — Python Dependencies
+# ==============================================================================
+
+# ── FastAPI core ───────────────────────────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9
+
+# ── MongoDB async ──────────────────────────────────────────────────────────────
+motor==3.4.0
+beanie==1.26.0
+
+# ── Auth / security ────────────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# ── Settings ───────────────────────────────────────────────────────────────────
+pydantic-settings==2.2.1
+pydantic[email]==2.7.1
+python-dotenv==1.0.1
+
+# ── LangGraph agent + Gemini ───────────────────────────────────────────────────
+langchain-google-genai==1.0.4
+langgraph==0.1.4
+langchain-core==0.2.5
+
+# ── RAG pipeline ───────────────────────────────────────────────────────────────
+chromadb==0.5.0
+sentence-transformers==2.7.0
+
+# ── ML inference (optional — graceful fallback to mock if not installed) ───────
+# Comment out on servers that don't need local GPU inference:
+torch==2.3.0
+timm==1.0.3
+Pillow==10.3.0
+numpy==1.26.4
+
+# ── Grad-CAM explainability (optional) ────────────────────────────────────────
+grad-cam==1.5.2
+
+# ── PDF report generation ──────────────────────────────────────────────────────
+reportlab==4.2.0

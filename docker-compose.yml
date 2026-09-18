@@ -1,0 +1,63 @@
+# ==============================================================================
+# DermaAI — Full Stack Docker Compose
+# ==============================================================================
+# Starts: MongoDB + FastAPI backend
+# Frontend (React/Vite) is run separately via `npm run dev` during development.
+#
+# Usage:
+#   docker-compose up --build          # start everything
+#   docker-compose down -v             # stop and remove volumes
+#
+# Before running:
+#   Copy backend/.env.example → backend/.env and fill in GEMINI_API_KEY
+# ==============================================================================
+
+version: "3.9"
+
+services:
+
+  # ── MongoDB ──────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: dermaai-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: dermatology
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── FastAPI Backend ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dermaai-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override MONGO_URL to use the Docker service hostname
+      MONGO_URL: mongodb://mongo:27017
+      ENVIRONMENT: development
+    volumes:
+      - uploads_data:/app/uploads
+
+# ── Named Volumes ─────────────────────────────────────────────────────────────
+volumes:
+  mongo_data:
+    driver: local
+  uploads_data:
+    driver: local
