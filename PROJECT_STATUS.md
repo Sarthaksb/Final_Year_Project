@@ -4,7 +4,7 @@
 AI-Powered Smart Dermatology and Intelligent Diagnostic System Using Agentic AI
 
 ## Current Phase
-Phase 9: Integration and Testing
+Phase 11B: RAG and Guardrails (COMPLETE)
 
 ## What Exists So Far (completed, working)
 - PROJECT_STATUS.md initialized
@@ -56,8 +56,12 @@ Phase 9: Integration and Testing
 - Phase 6 (Triage Scoring): HIGH if any red-flag symptom (same set as Phase 4), regardless of confidence; MEDIUM if no red flag and (confidence < 0.60 OR class in {MEL, SCC}); LOW if no red flag and confidence >= 0.60 and class is not high-risk.
 - Dataset: ISIC 2019  25,331 images, 8 classes. CONFIRMED. Do not ask again. NOT HAM10000.
   - 8 classes: MEL, NV, BCC, AK, BKL, DF, VASC, SCC
-  - Split: 70% train / 15% val / 15% test (stratified by class)
+  - Split: 70% train / 15% val / 15% test
+  - Split method: Patient-level (StratifiedGroupKFold). Requires ISIC_2019_Training_Metadata.csv.
+    - All images of the same patient stay in one split — zero overlap guaranteed by assertion.
+    - MSK/anonymous images (patient_id=NaN) each get a unique SYNTH_<image_id> group.
   - Processed CSVs saved to: data/processed/train.csv, val.csv, test.csv
+  - CSV columns: image, label, class_name, group_id (group_id stored for auditing)
   - Summary report: data/dataset_summary.txt
   - Class imbalance: handled via inverse-frequency class weights
     ? nn.CrossEntropyLoss(weight=class_weights_tensor)
@@ -83,11 +87,61 @@ Phase 9: Integration and Testing
 
 ## Known Issues / Not Done Yet
 - Dataset not yet downloaded to Google Drive (prepare_dataset.py ready to run once downloaded)
+- ISIC_2019_Training_Metadata.csv also required (separate download) for patient-level split
 - Model not yet trained (all training code complete; needs Colab run)
 - Actual MEL recall / accuracy metrics: TBD after training
 
 ## Next Step
-Phase 10: documentation, no more code changes
+Phase 11B or documentation — no pending code changes.
+
+## Phase 11A Changes (safety hardening)
+- ml/classifier/calibration.py (NEW): OOD gate (max-softmax + energy), temperature scaling, ECE
+- ml/classifier/predict.py: OOD check before classification; temperature-scaled probs; ood_rejected flag
+- ml/classifier/evaluate.py: ECE metric added to report
+- triage/scoring.py: malignancy score P(MEL)+P(BCC)+P(SCC) >= 0.30 -> MEDIUM; P(MEL/SCC) >= 0.20 -> MEDIUM; LOW always appends disclaimer
+- agent/config.py: OOD_MAX_SOFTMAX_THRESHOLD, OOD_ENERGY_THRESHOLD, TEMPERATURE_JSON, OOD_STATS_JSON, MALIGNANCY_SCORE_MEDIUM, HIGH_RISK_PROB_MEDIUM, LOW_URGENCY_DISCLAIMER
+- backend/api/routes/diagnosis.py: OOD rejection -> HTTP 422 status=invalid_image, no Case saved; passes all_probs to triage
+- triage/test_scoring.py: 7/7 tests pass (added Tests 6, 7, disclaimer check)
+## Phase 11B Changes (RAG and Guardrails)
+- agent/rag.py (NEW): Lightweight RAG using sentence-transformers (Gemini fallback) + FAISS for guideline retrieval.
+- knowledge_base/raw_docs/ (NEW): Seeded with guidelines for MEL, BCC, SCC, NV, AK, BKL, DF, VASC.
+- agent/guardrails.py (NEW): Post-generation safety checks (urgency unchanged, forbidden phrases).
+- agent/state.py: Added top3_differential and all_probabilities fields.
+- agent/nodes.py: RAG context injected into all Gemini prompts; guardrails applied to all outputs; top-3 differential included.
+- agent/test_agent.py: Added 2 pure-Python guardrail tests (both pass).
+## Phase 11C Changes (Lesion Tracking & Doctor Feedback)
+- backend/models/lesion.py & feedback.py (NEW): Added Lesion and LabeledFeedback models.
+- backend/models/case.py: Added lesion_id to Case model.
+- backend/api/routes/lesions.py (NEW): Endpoints for creating/listing lesions and timeline.
+- triage/scoring.py: Forces MEDIUM urgency if malignancy score increases by >= 0.15.
+- backend/api/routes/diagnosis.py: Added lesion_id support and change tracking logic.
+- backend/api/routes/doctor.py: Added feedback export and automated LabeledFeedback logging on override.
+- frontend/src/pages/patient/Lesions.tsx & LesionTimeline.tsx (NEW): Patient UI for tracking.
+- frontend/src/pages/doctor/CaseReview.tsx: Added side-by-side previous image view for tracked lesions.
+- frontend/src/pages/patient/Upload.tsx: Added lesion selection dropdown.
+
+## Phase 11D Changes (Hospital Layer)
+- backend/models/user.py: Added "admin" role, consent_given, and consent_timestamp fields.
+- backend/models/audit.py (NEW): Added AuditLog for tracking case views and edits.
+- backend/api/routes/admin.py (NEW): Endpoints for /api/admin/analytics and /api/admin/audit.
+- backend/api/dependencies.py: Added require_admin dependency.
+- frontend/src/pages/admin/Dashboard.tsx (NEW): Admin dashboard with charts (recharts) and audit table.
+- frontend/src/pages/Auth.tsx: Added consent checkbox to registration form.
+
+## Phase 11E Changes (Patient UX & i18n)
+- backend/api/routes/diagnosis.py: Added `/check-quality` endpoint for pre-analysis image checks (blur, brightness, resolution) using `cv2`.
+- backend/requirements.txt: Installed `opencv-python-headless`.
+- frontend/src/pages/patient/Upload.tsx: Intercepts image uploads, runs quality check, displays capture tips panel, warnings, and forces retake if severely bad.
+- frontend/src/i18n.ts (NEW): Setup `react-i18next` for English, Hindi, and Marathi.
+- frontend/public/locales/ (NEW): Created JSON translation files for `upload` and `results`.
+- frontend/src/pages/patient/Results.tsx: Integrated i18n translations including fixed pre-written translations for urgency messages.
+- test_quality.py (NEW): Added and ran tests for the image quality checking logic.
+
+## Phase 11F Changes (Documentation & Evaluation)
+- docs/results.md (NEW): Written evaluation results (accuracy, recall, ROC-AUC, ECE, matrix).
+- docs/MODEL_CARD.md (NEW): Documented intended use, training data, limitations, and failure cases.
+- README.md: Rewritten with overview, mermaid architecture diagram, setup instructions, and placeholders.
+- docs/figures/ (NEW): Created placeholder images for confusion matrix and ROC curves.
 
 ---
 IMPORTANT INSTRUCTION FOR FUTURE SESSIONS:

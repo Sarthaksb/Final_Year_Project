@@ -1,0 +1,51 @@
+NV - Melanocytic Nevus (Common Mole) Clinical Guidelines
+=========================================================
+Source: Adapted from AAD dermatology guidelines (educational summary)
+
+OVERVIEW
+Melanocytic nevi (common moles) are benign proliferations of melanocytes. They are
+extremely common — most adults have 10–40 moles. The vast majority are entirely benign,
+but any changing mole warrants clinical evaluation.
+
+CLINICAL FEATURES (BENIGN CHARACTERISTICS)
+- Symmetric shape (both halves match)
+- Smooth, well-defined border
+- Uniform single color (tan, brown, or flesh-toned)
+- Diameter usually < 6mm
+- Stable over years — NOT evolving
+
+WHEN A NEVUS MAY BECOME CONCERNING
+- Asymmetry develops
+- Border becomes irregular, notched, or blurred
+- Color changes or becomes variegated (multiple colors)
+- Diameter increases beyond 6mm
+- Evolving: any change in size, shape, color, or new symptoms (bleeding, itching, pain)
+- A new mole appearing after age 50
+
+TYPES OF NEVI
+- Common acquired nevus: most prevalent; develops in childhood/adolescence
+- Congenital nevus: present at birth; large ones have slightly higher MEL risk
+- Dysplastic (atypical) nevus: irregular features; marker of elevated MEL risk
+- Blue nevus: blue-grey color; benign but can mimic melanoma
+
+MANAGEMENT
+- Most benign nevi require no treatment
+- Excision biopsy if: changing, symptomatic, cosmetically bothersome, or diagnostic doubt
+- Dysplastic nevi: excise if severely atypical; regular surveillance otherwise
+- High nevus count (>50) is a melanoma risk factor — annual skin checks recommended
+
+PATIENT ADVICE
+- Perform monthly self-examination
+- Photograph baseline moles and compare at 3-month intervals
+- Any change in a mole should prompt dermatology evaluation
+- Monitor and consult a doctor if it changes
+- Use SPF 50+ sunscreen — UV exposure promotes nevus evolution
+
+DISCLAIMER
+This AI tool provides decision support only. A dermatologist must evaluate any
+changing or symptomatic mole. Do not interpret "NV" prediction as confirmation
+that no further evaluation is needed.
+
+DIFFERENTIAL DIAGNOSIS
+NV vs: MEL (melanoma — must rule out with ABCDE), BKL (seborrhoeic keratosis —
+stuck-on appearance), DF (dermatofibroma — firm, dimples with pinch).

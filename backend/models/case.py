@@ -19,6 +19,7 @@ class Case(Document):
     user_id: str                        # stored as str of User PydanticObjectId
     image_filename: str                 # saved filename on server
     image_path: str                     # relative path under uploads/
+    lesion_id: Optional[str] = None     # groups cases of the same physical lesion
 
     # Symptom questionnaire — all default False
     symptom_rapid_growth: bool = False

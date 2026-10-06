@@ -1,0 +1,47 @@
+BCC - Basal Cell Carcinoma Clinical Guidelines
+===============================================
+Source: Adapted from AAD/NICE dermatology guidelines (educational summary)
+
+OVERVIEW
+Basal cell carcinoma (BCC) is the most common skin cancer worldwide, arising from
+basal cells of the epidermis. It grows slowly and rarely metastasises, but causes
+significant local tissue destruction if left untreated. Early treatment is curative.
+
+CLINICAL FEATURES
+- Pearly or waxy bump, often with visible blood vessels (telangiectasia)
+- Flat, flesh-coloured or brown scar-like lesion
+- Bleeding or scabbing sore that heals and returns
+- Pink growth with raised edges and a crusted centre
+- Commonly on sun-exposed areas: face, ears, neck, scalp, shoulders
+
+RISK FACTORS
+- Cumulative UV exposure (sun, tanning beds)
+- Fair skin, light eyes/hair, freckles
+- Personal or family history of BCC or other skin cancers
+- Immunosuppression (organ transplant recipients have 65x higher risk)
+- Radiation therapy history
+
+MANAGEMENT
+- Surgical excision: primary treatment; high cure rates (>95%)
+- Mohs micrographic surgery: for high-risk or recurrent BCC
+- Topical treatments (imiquimod, 5-FU): for superficial BCC only
+- Photodynamic therapy: for superficial BCC in cosmetically sensitive areas
+- Hedgehog pathway inhibitors (vismodegib): for advanced/metastatic BCC
+
+MONITORING AND FOLLOW-UP
+- Annual skin checks after first BCC — 50% risk of second BCC within 5 years
+- Full-body skin examination by dermatologist
+- Patient self-examination monthly
+
+PATIENT ADVICE
+- Strict sun protection (SPF 50+, protective clothing, avoid peak UV hours)
+- Report any new growths, sores that don't heal, or lesion changes promptly
+- Monitor and consult a doctor if the lesion changes in any way
+
+DISCLAIMER
+This is decision-support information only. A qualified dermatologist must confirm
+any diagnosis. AI output should never state "no cancer" or "you are fine."
+
+DIFFERENTIAL DIAGNOSIS
+BCC vs: SCC (squamous cell — grows faster, higher metastasis risk), MEL (melanoma),
+BKL (seborrhoeic keratosis — benign), VASC (vascular lesion), AK (actinic keratosis).

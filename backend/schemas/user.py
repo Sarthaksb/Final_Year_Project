@@ -12,6 +12,14 @@ class UserRegister(BaseModel):
     email:     EmailStr
     password:  str
     full_name: str
+    consent_given: bool
+
+    @field_validator("consent_given")
+    @classmethod
+    def require_consent(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("Data sharing consent is required to register.")
+        return v
 
     @field_validator("password")
     @classmethod

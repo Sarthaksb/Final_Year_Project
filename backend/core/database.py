@@ -26,14 +26,16 @@ async def init_db() -> None:
     Initialise Beanie with all Document models.
     Must be awaited once before any DB operations.
     """
-    from beanie import init_beanie
     from models.user import User
     from models.case import Case
+    from models.lesion import Lesion
+    from models.feedback import LabeledFeedback
+    from models.audit import AuditLog
 
     client = get_motor_client()
     await init_beanie(
         database=client[settings.mongo_db_name],
-        document_models=[User, Case],
+        document_models=[User, Case, Lesion, LabeledFeedback, AuditLog],
     )
 
 

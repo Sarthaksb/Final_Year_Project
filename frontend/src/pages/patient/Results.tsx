@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { getCase, DiagnosisResult } from '../../api/diagnosis'
 import UrgencyBadge from '../../components/UrgencyBadge'
 import { useToast } from '../../components/Toast'
@@ -22,6 +23,7 @@ export default function Results() {
   const { caseId } = useParams<{ caseId: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+  const { t } = useTranslation()
 
   const [result, setResult] = useState<ExtResult | null>(null)
   const [loading, setLoading] = useState(true)
@@ -104,7 +106,7 @@ export default function Results() {
                     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                     <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
                   </svg>
-                  Primary Prediction
+                  {t('results.diagnosis')}
                 </p>
                 <h1 className="text-3xl sm:text-4xl font-black text-gray-900 leading-tight">
                   {result.predicted_class}
@@ -116,6 +118,9 @@ export default function Results() {
               <UrgencyBadge urgency={result.urgency} size="lg" />
             </div>
             <p className="text-gray-700 leading-relaxed max-w-xl">{result.description}</p>
+            <div className="mt-4 p-4 rounded-xl bg-gray-50 border border-gray-200 text-sm font-semibold text-gray-800">
+              {t(`results.urgency.${result.urgency}`)}
+            </div>
           </div>
 
           <div className="bg-white p-6 sm:p-8 border-t border-gray-100 space-y-5">
@@ -176,8 +181,8 @@ export default function Results() {
         <div className="bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-card">
           <div className="flex border-b border-gray-100 overflow-x-auto scrollbar-thin">
             {[
-              { id: 'overview', label: 'All Probabilities', icon: '📊' },
-              { id: 'explanation', label: 'AI Explanation', icon: '🤖' },
+              { id: 'overview', label: t('results.confidence'), icon: '📊' },
+              { id: 'explanation', label: t('results.explanation'), icon: '🤖' },
               { id: 'heatmap', label: 'Grad-CAM', icon: '👁️' },
             ].map(t => (
               <button
@@ -253,7 +258,7 @@ export default function Results() {
                   <div className="space-y-2">
                     <h3 className="text-sm font-bold text-brand-600 flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
-                      Medical Literature Context (RAG)
+                      {t('results.medical_kb')}
                     </h3>
                     <div className="bg-brand-50 border border-brand-100 rounded-xl p-4">
                       <p className="text-sm text-gray-700 leading-relaxed mb-3">{result.rag_explanation}</p>

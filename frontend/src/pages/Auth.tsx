@@ -74,9 +74,10 @@ export default function Auth({ mode }: Props) {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [showPass, setShowPass] = useState(false)
+  const [consentGiven, setConsentGiven] = useState(false)
 
   useEffect(() => {
-    if (user) navigate(user.role === 'doctor' ? '/doctor' : '/upload', { replace: true })
+    if (user) navigate(user.role === 'admin' ? '/admin' : user.role === 'doctor' ? '/doctor' : '/upload', { replace: true })
   }, [user, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -88,14 +89,15 @@ export default function Auth({ mode }: Props) {
       if (tab === 'register') {
         if (!fullName.trim()) { setError('Full name is required'); setLoading(false); return }
         if (password.length < 6) { setError('Password must be at least 6 characters'); setLoading(false); return }
-        data = await registerApi(email, password, fullName)
+        if (!consentGiven) { setError('You must consent to data sharing.'); setLoading(false); return }
+        data = await registerApi(email, password, fullName, consentGiven)
         toast.success(`Welcome, ${data.user.full_name}!`)
       } else {
         data = await loginApi(email, password)
         toast.success(`Welcome back, ${data.user.full_name}!`)
       }
       login(data.access_token, data.user)
-      navigate(data.user.role === 'doctor' ? '/doctor' : '/upload', { replace: true })
+      navigate(data.user.role === 'admin' ? '/admin' : data.user.role === 'doctor' ? '/doctor' : '/upload', { replace: true })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setError(msg ?? (tab === 'login' ? 'Invalid email or password.' : 'Registration failed. Email may already be taken.'))
@@ -290,6 +292,20 @@ export default function Auth({ mode }: Props) {
                 </button>
               </div>
             </div>
+
+            {tab === 'register' && (
+              <label className="flex items-start gap-2.5 mt-4 cursor-pointer scale-in">
+                <input
+                  type="checkbox"
+                  checked={consentGiven}
+                  onChange={e => setConsentGiven(e.target.checked)}
+                  className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span className="text-xs text-gray-600 leading-snug">
+                  I consent to sharing my uploaded images and clinical data for the purpose of medical AI research and model finetuning.
+                </span>
+              </label>
+            )}
 
             {/* Error message */}
             {error && (

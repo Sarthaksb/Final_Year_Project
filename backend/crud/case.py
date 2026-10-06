@@ -34,6 +34,7 @@ async def create_case(
     image_path:     str,
     symptoms:       dict,
     result:         Optional[DiagnosisResult] = None,
+    lesion_id:      Optional[str] = None,
 ) -> Case:
     """Insert a new Case document and return it."""
     case = Case(
@@ -46,6 +47,7 @@ async def create_case(
         symptom_itching       = symptoms.get("itching",         False),
         symptom_pain          = symptoms.get("pain",            False),
         result                = result,
+        lesion_id             = lesion_id,
     )
     await case.insert()
     logger.debug("Case inserted: %s", case.id)

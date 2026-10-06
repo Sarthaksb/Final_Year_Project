@@ -9,9 +9,12 @@ import Auth       from './pages/Auth'
 import Upload     from './pages/patient/Upload'
 import Results    from './pages/patient/Results'
 import Home       from './pages/patient/Home'
+import Lesions    from './pages/patient/Lesions'
+import LesionTimeline from './pages/patient/LesionTimeline'
 import Dashboard  from './pages/doctor/Dashboard'
 import CaseReview from './pages/doctor/CaseReview'
 import Report     from './pages/doctor/Report'
+import AdminDashboard from './pages/admin/Dashboard'
 
 export default function App() {
   const { user } = useAuthStore()
@@ -29,7 +32,7 @@ export default function App() {
           <Routes>
             {/* Landing */}
             <Route path="/" element={user
-              ? <Navigate to={user.role === 'doctor' ? '/doctor' : '/upload'} replace />
+              ? <Navigate to={user.role === 'admin' ? '/admin' : user.role === 'doctor' ? '/doctor' : '/upload'} replace />
               : <Landing />}
             />
 
@@ -41,11 +44,16 @@ export default function App() {
             <Route path="/upload"  element={<ProtectedRoute requireRole="patient"><Upload /></ProtectedRoute>} />
             <Route path="/results/:caseId" element={<ProtectedRoute requireRole="patient"><Results /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute requireRole="patient"><Home /></ProtectedRoute>} />
+            <Route path="/lesions" element={<ProtectedRoute requireRole="patient"><Lesions /></ProtectedRoute>} />
+            <Route path="/lesions/:lesionId/timeline" element={<ProtectedRoute requireRole="patient"><LesionTimeline /></ProtectedRoute>} />
 
             {/* Doctor */}
             <Route path="/doctor" element={<ProtectedRoute requireRole="doctor"><Dashboard /></ProtectedRoute>} />
             <Route path="/doctor/cases/:caseId" element={<ProtectedRoute requireRole="doctor"><CaseReview /></ProtectedRoute>} />
             <Route path="/doctor/cases/:caseId/report" element={<ProtectedRoute requireRole="doctor"><Report /></ProtectedRoute>} />
+
+            {/* Admin */}
+            <Route path="/admin" element={<ProtectedRoute requireRole="admin"><AdminDashboard /></ProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/" replace />} />

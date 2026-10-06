@@ -67,27 +67,45 @@ class ISICDataset(Dataset):
 
     Args:
         csv_path  : Path to one of train.csv / val.csv / test.csv
+                    Columns expected: image, label (int 0-7), class_name
+        img_dir   : Directory containing the raw .jpg images.
+                    Image path is reconstructed as: img_dir / f"{image_id}.jpg"
+                    (FIX 2: paths are NOT stored in the CSV — reconstructed here)
         transform : torchvision transform to apply (train vs val/test)
     """
 
-    def __init__(self, csv_path: str | Path, transform: Optional[Callable] = None):
+    def __init__(
+        self,
+        csv_path: str | Path,
+        img_dir: str | Path,
+        transform: Optional[Callable] = None,
+    ):
         self.df = pd.read_csv(csv_path)
+        self.img_dir = Path(img_dir)
         self.transform = transform
 
-        # Validate required columns
-        required = {"filepath", "label", "class_name"}
+        # Validate required columns (filepath is no longer stored in the CSV)
+        required = {"image", "label", "class_name"}
         missing = required - set(self.df.columns)
         if missing:
             raise ValueError(f"CSV {csv_path} is missing columns: {missing}")
 
-        log.info(f"Loaded {len(self.df):,} samples from {csv_path}")
+        if not self.img_dir.exists():
+            raise FileNotFoundError(
+                f"Image directory not found: {self.img_dir}\n"
+                f"  Pass the correct --drive_root so img_dir resolves correctly."
+            )
+
+        log.info(f"Loaded {len(self.df):,} samples from {csv_path} | img_dir={self.img_dir}")
 
     def __len__(self) -> int:
         return len(self.df)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
         row = self.df.iloc[idx]
-        img = Image.open(row["filepath"]).convert("RGB")
+        # Reconstruct path at runtime — not stored in CSV (Fix 2)
+        img_path = self.img_dir / f"{row['image']}.jpg"
+        img = Image.open(img_path).convert("RGB")
         if self.transform:
             img = self.transform(img)
         return img, int(row["label"])
@@ -128,6 +146,7 @@ def get_dataloaders(
     train_csv: str | Path,
     val_csv: str | Path,
     test_csv: str | Path,
+    img_dir: str | Path,
     batch_size: int = 32,
     img_size: int = 224,
     num_workers: int = 2,
@@ -136,14 +155,17 @@ def get_dataloaders(
     """
     Returns {"train": DataLoader, "val": DataLoader, "test": DataLoader}.
 
+    img_dir   : directory containing the raw .jpg images (e.g. Drive's
+                ISIC_2019_Training_Input/). Passed to ISICDataset so image
+                paths are reconstructed at runtime — not read from CSV.
     train loader uses WeightedRandomSampler by default (oversamples rare classes).
     val/test loaders are sequential (no shuffling, no oversampling).
 
     num_workers=2 is safe for Colab; set to 0 if you see DataLoader hangs.
     """
-    train_ds = ISICDataset(train_csv, transform=get_train_transform(img_size))
-    val_ds   = ISICDataset(val_csv,   transform=get_val_transform(img_size))
-    test_ds  = ISICDataset(test_csv,  transform=get_val_transform(img_size))
+    train_ds = ISICDataset(train_csv, img_dir=img_dir, transform=get_train_transform(img_size))
+    val_ds   = ISICDataset(val_csv,   img_dir=img_dir, transform=get_val_transform(img_size))
+    test_ds  = ISICDataset(test_csv,  img_dir=img_dir, transform=get_val_transform(img_size))
 
     train_sampler = make_weighted_sampler(train_ds) if use_weighted_sampler else None
 

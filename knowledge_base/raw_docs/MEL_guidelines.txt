@@ -1,0 +1,44 @@
+MEL - Melanoma Clinical Guidelines
+====================================
+Source: Adapted from AAD/WHO dermatology guidelines (educational summary)
+
+OVERVIEW
+Melanoma is the most dangerous form of skin cancer, arising from melanocytes.
+Early detection is critical — 5-year survival exceeds 98% if caught at stage I,
+but drops to ~25% at stage IV.
+
+ABCDE RULE FOR DETECTION
+- Asymmetry: One half unlike the other
+- Border: Ragged, notched, or blurred edges
+- Color: Variation in color (tan, brown, black, red, white, or blue)
+- Diameter: Larger than 6mm (pencil eraser size)
+- Evolving: Any change in size, shape, color, or new symptom (bleeding, itching)
+
+RED FLAGS REQUIRING URGENT REFERRAL
+- Rapidly growing lesion (weeks, not months)
+- Spontaneous bleeding or ulceration
+- Irregular or notched border
+- Itching AND pain simultaneously present
+- Lesion diameter > 6mm with color variation
+
+CLINICAL MANAGEMENT
+- Urgent dermatology referral within 2 weeks (suspected melanoma pathway)
+- Dermoscopy evaluation by trained clinician
+- Excision biopsy is the gold standard for definitive diagnosis
+- Sentinel lymph node biopsy for lesions > 1mm Breslow thickness
+- Do NOT apply topical treatments before biopsy — it alters histology
+
+PATIENT ADVICE
+- Avoid sun exposure; use SPF 50+ sunscreen daily
+- Perform monthly self-skin checks
+- Monitor lesion for ANY change in size, shape, colour, or symptoms
+- Do not delay seeking evaluation if the lesion changes
+
+DISCLAIMER
+This is decision-support information only. A qualified dermatologist must
+confirm any diagnosis. Do not tell patients they are cancer-free based on
+AI output alone. Always use: "Monitor and consult a doctor if it changes."
+
+DIFFERENTIAL DIAGNOSIS
+MEL must be distinguished from: NV (benign nevus), BKL (seborrhoeic keratosis),
+BCC (basal cell carcinoma — also malignant but rarely metastasises), DF (dermatofibroma).

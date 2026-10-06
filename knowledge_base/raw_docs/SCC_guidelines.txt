@@ -1,0 +1,49 @@
+SCC - Squamous Cell Carcinoma Clinical Guidelines
+==================================================
+Source: Adapted from AAD/NICE dermatology guidelines (educational summary)
+
+OVERVIEW
+Squamous cell carcinoma (SCC) is the second most common skin cancer, arising from
+squamous cells of the epidermis. Unlike BCC, SCC has a meaningful metastasis risk
+(~2-5% overall; higher in immunocompromised patients or high-risk sites like lips/ears).
+
+CLINICAL FEATURES
+- Firm red nodule or flat lesion with scaly, crusted surface
+- New sore or raised area on an old scar
+- Rough, scaly patch on the lip
+- Red sore or rough patch inside the mouth
+- Wart-like growth
+- Commonly on sun-exposed areas; also mucous membranes and genitals
+
+RED FLAGS FOR SCC
+- Rapid growth over weeks
+- Ulceration or spontaneous bleeding
+- Perineural invasion (numbness, tingling around lesion)
+- Lesion on lip, ear, or in immunocompromised patient
+- Regional lymph node enlargement
+
+RELATIONSHIP TO ACTINIC KERATOSIS (AK)
+- AK is the precursor lesion to SCC
+- ~10% of untreated AKs may progress to SCC over 10 years
+- AK management reduces SCC incidence
+
+MANAGEMENT
+- Surgical excision: standard treatment with clear margins
+- Mohs surgery: for high-risk SCC (face, recurrent, large, perineural)
+- Radiation therapy: for inoperable cases or post-excision adjuvant
+- Sentinel node biopsy: for high-risk SCC (>2cm, >2mm depth, immunocompromised)
+- Cemiplimab / pembrolizumab: immunotherapy for advanced/metastatic SCC
+
+PATIENT ADVICE
+- Immediate dermatology referral for any suspected SCC
+- Sun protection: SPF 50+, protective clothing year-round
+- Stop smoking (risk factor for oral/lip SCC)
+- Monitor and consult a doctor if the lesion changes in size, colour, or texture
+
+DISCLAIMER
+This is decision-support information only. A dermatologist must confirm diagnosis.
+Never tell a patient they are cancer-free based on AI screening output alone.
+
+DIFFERENTIAL DIAGNOSIS
+SCC vs: AK (precursor — treatment prevents progression), BCC (slower, no metastasis),
+MEL (melanoma — higher systemic risk), VASC (vascular lesion — different management).

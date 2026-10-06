@@ -7,6 +7,7 @@ import {
   DoctorCaseOut,
   ReviewRequest,
 } from '../../api/doctor'
+import { getLesionTimeline, TimelineItem } from '../../api/diagnosis'
 import { useToast } from '../../components/Toast'
 
 const ISIC_CLASSES = ['MEL', 'NV', 'BCC', 'AK', 'BKL', 'DF', 'VASC', 'SCC']
@@ -34,6 +35,9 @@ export default function CaseReview() {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
+  
+  const [timeline, setTimeline] = useState<TimelineItem[]>([])
+  const [prevCase, setPrevCase] = useState<TimelineItem | null>(null)
 
   useEffect(() => {
     if (!caseId) return
@@ -44,6 +48,13 @@ export default function CaseReview() {
           setDecision(data.doctor_review.decision)
           setOverrideClass(data.doctor_review.override_class ?? 'MEL')
           setNotes(data.doctor_review.notes ?? '')
+        }
+        if (data.lesion_id) {
+          getLesionTimeline(data.lesion_id).then(res => {
+            setTimeline(res.timeline)
+            const idx = res.timeline.findIndex(t => t.case_id === caseId)
+            if (idx > 0) setPrevCase(res.timeline[idx - 1])
+          }).catch(console.error)
         }
       })
       .catch(() => toast.error('Case not found or access denied.'))
@@ -175,19 +186,34 @@ export default function CaseReview() {
               </span>
               <span className="text-xs text-gray-400 font-mono truncate max-w-[100px]">{caseData?.image_filename}</span>
             </div>
-            <div className="p-4 flex items-center justify-center bg-gray-50 min-h-[240px]">
-              {caseData?.image_filename ? (
-                <img
-                  src={`/uploads/${caseData.image_filename}`}
-                  alt="Skin lesion"
-                  className="max-h-[280px] w-auto rounded-xl object-contain border border-gray-200 shadow-sm"
-                  onError={e => {
-                    (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="%23f1f5f9"/><text x="150" y="150" fill="%2394a3b8" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14">Image Not Found</text></svg>'
-                  }}
-                />
-              ) : (
-                <p className="text-gray-400 text-sm">No image available</p>
+            
+            <div className={`p-4 flex items-center justify-center bg-gray-50 min-h-[240px] ${prevCase ? 'grid grid-cols-2 gap-4' : ''}`}>
+              {prevCase && (
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-bold text-gray-500 mb-2">PREVIOUS ({new Date(prevCase.created_at).toLocaleDateString()})</span>
+                  <img
+                    src={`/uploads/${prevCase.image_filename}`}
+                    alt="Previous lesion"
+                    className="max-h-[240px] w-auto rounded-xl object-contain border border-gray-200 shadow-sm"
+                  />
+                </div>
               )}
+              
+              <div className="flex flex-col items-center">
+                {prevCase && <span className="text-xs font-bold text-brand-600 mb-2">CURRENT</span>}
+                {caseData?.image_filename ? (
+                  <img
+                    src={`/uploads/${caseData.image_filename}`}
+                    alt="Skin lesion"
+                    className="max-h-[280px] w-auto rounded-xl object-contain border border-gray-200 shadow-sm"
+                    onError={e => {
+                      (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="%23f1f5f9"/><text x="150" y="150" fill="%2394a3b8" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14">Image Not Found</text></svg>'
+                    }}
+                  />
+                ) : (
+                  <p className="text-gray-400 text-sm">No image available</p>
+                )}
+              </div>
             </div>
           </div>
 

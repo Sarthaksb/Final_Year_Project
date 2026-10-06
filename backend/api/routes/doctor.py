@@ -28,6 +28,8 @@ from api.dependencies import get_current_user
 from crud.case import get_all_cases, get_case_by_id, get_case_stats, save_doctor_review
 from models.review import DoctorReview
 from models.user import User
+from models.feedback import LabeledFeedback
+from models.audit import AuditLog
 from schemas.case import DiagnosisOut
 from schemas.doctor import DoctorCaseOut, ReviewOut, ReviewRequest
 
@@ -98,6 +100,7 @@ def _to_doctor_case_out(case) -> DoctorCaseOut:
         symptoms=symptoms,
         result=result_out,
         doctor_review=review_out,
+        lesion_id=case.lesion_id,
     )
 
 
@@ -164,6 +167,15 @@ async def get_case_detail(
     case = await get_case_by_id(case_id)
     if case is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+
+    await AuditLog(
+        user_id=str(doctor.id),
+        user_email=doctor.email,
+        user_role=doctor.role,
+        action="view",
+        case_id=case_id,
+    ).insert()
+
     return _to_doctor_case_out(case)
 
 
@@ -210,6 +222,25 @@ async def submit_review(
     )
 
     updated = await save_doctor_review(case_id, review)
+    
+    # Store feedback for future model finetuning
+    if body.decision == "overridden" and body.override_class:
+        feedback = LabeledFeedback(
+            case_id=str(case.id),
+            doctor_id=str(doctor.id),
+            ai_label=case.result.predicted_class if case.result else "UNKNOWN",
+            doctor_label=body.override_class.upper()
+        )
+        await feedback.insert()
+
+    await AuditLog(
+        user_id=str(doctor.id),
+        user_email=doctor.email,
+        user_role=doctor.role,
+        action="edit",
+        case_id=case_id,
+    ).insert()
+
     return _to_doctor_case_out(updated)
 
 
@@ -414,4 +445,28 @@ async def download_pdf_report(
         buf,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── 5. Export labeled feedback ────────────────────────────────────────────────
+
+@router.get("/feedback/export")
+async def export_feedback(doctor: User = Depends(_require_doctor)):
+    """
+    Export doctor overrides as a CSV for future model finetuning.
+    Returns: case_id, doctor_id, ai_label, doctor_label, timestamp
+    """
+    feedback_records = await LabeledFeedback.find_all().to_list()
+    
+    output = io.StringIO()
+    output.write("case_id,doctor_id,ai_label,doctor_label,timestamp\n")
+    for f in feedback_records:
+        ts = f.created_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        output.write(f"{f.case_id},{f.doctor_id},{f.ai_label},{f.doctor_label},{ts}\n")
+        
+    buf = io.BytesIO(output.getvalue().encode('utf-8'))
+    return StreamingResponse(
+        buf,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="doctor_feedback.csv"'}
     )

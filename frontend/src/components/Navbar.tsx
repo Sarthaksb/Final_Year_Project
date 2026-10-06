@@ -1,4 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../store'
 
 const PATIENT_LINKS = [
@@ -8,6 +9,10 @@ const PATIENT_LINKS = [
 
 const DOCTOR_LINKS = [
   { to: '/doctor', label: 'Dashboard' },
+]
+
+const ADMIN_LINKS = [
+  { to: '/admin', label: 'Admin Dashboard' },
 ]
 
 // Brain/dermatology SVG icon
@@ -23,8 +28,9 @@ export default function Navbar() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
+  const { i18n } = useTranslation()
 
-  const links = user?.role === 'doctor' ? DOCTOR_LINKS : PATIENT_LINKS
+  const links = user?.role === 'admin' ? ADMIN_LINKS : user?.role === 'doctor' ? DOCTOR_LINKS : PATIENT_LINKS
   const isLanding = location.pathname === '/'
 
   return (
@@ -36,7 +42,7 @@ export default function Navbar() {
 
         {/* ── Logo ──────────────────────────────────────── */}
         <Link
-          to={user ? (user.role === 'doctor' ? '/doctor' : '/upload') : '/'}
+          to={user ? (user.role === 'admin' ? '/admin' : user.role === 'doctor' ? '/doctor' : '/upload') : '/'}
           className="flex items-center gap-2.5 group flex-shrink-0"
         >
           <div className="w-9 h-9 rounded-xl bg-brand-600
@@ -91,6 +97,16 @@ export default function Navbar() {
 
         {/* ── Right: user + auth ────────────────────────── */}
         <div className="flex items-center gap-3">
+          <select
+            value={i18n.language}
+            onChange={(e) => i18n.changeLanguage(e.target.value)}
+            className="text-xs bg-gray-50 border border-gray-200 text-gray-700 rounded-md py-1 px-2 outline-none focus:border-brand-500"
+          >
+            <option value="en">EN</option>
+            <option value="hi">HI</option>
+            <option value="mr">MR</option>
+          </select>
+
           {user ? (
             <>
               {/* Avatar + name */}

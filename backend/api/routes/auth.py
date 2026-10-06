@@ -23,6 +23,7 @@ async def register(body: UserRegister):
             email=body.email,
             password=body.password,
             full_name=body.full_name,
+            consent_given=body.consent_given,
         )
     except ValueError as exc:
         raise HTTPException(

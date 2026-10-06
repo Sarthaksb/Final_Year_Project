@@ -17,6 +17,7 @@ from api.dependencies import get_current_user
 from core.config import settings
 from crud.case import count_cases_by_user, delete_case, get_case_by_id, get_cases_by_user
 from models.user import User
+from models.audit import AuditLog
 from schemas.case import CaseOut, DiagnosisOut
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,15 @@ async def get_case(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
     if case.user_id != str(current_user.id) and current_user.role != "doctor":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        
+    await AuditLog(
+        user_id=str(current_user.id),
+        user_email=current_user.email,
+        user_role=current_user.role,
+        action="view",
+        case_id=case_id,
+    ).insert()
+
     return _case_to_schema(case)
 
 

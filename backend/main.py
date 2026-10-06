@@ -26,6 +26,7 @@ CORS:
 
 import logging
 import traceback
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -38,19 +39,43 @@ from core.config import settings
 from core.database import close_db, init_db, get_motor_client
 from core.logging_config import configure_logging
 from core.middleware import RequestIDMiddleware, TimingLoggingMiddleware
-from api.routes import auth, cases, diagnosis, doctor
+from api.routes import auth, cases, diagnosis, doctor, lesions, admin
 from api.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
+# Add project root to sys.path so we can import ml module
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: configure logging + init DB. Shutdown: close connection."""
+    """Startup: configure logging, init DB, and load ML model. Shutdown: close connection."""
     configure_logging()
     logger.info("Starting %s v%s [%s]", settings.app_name, "1.0.0", settings.environment)
     await init_db()
     logger.info("MongoDB initialised — database: %s", settings.mongo_db_name)
+
+    # Load ML Model
+    ckpt = settings.model_checkpoint_path
+    if not ckpt or not Path(ckpt).exists():
+        logger.warning("ML Model checkpoint missing at '%s'. Inference will return MODEL_UNAVAILABLE.", ckpt)
+        app.state.ml_model = None
+        app.state.ml_device = None
+    else:
+        try:
+            from ml.classifier.predict import load_model
+            logger.info("Loading ML Model from '%s'...", ckpt)
+            model, device = load_model(ckpt)
+            app.state.ml_model = model
+            app.state.ml_device = device
+            logger.info("ML Model loaded successfully and attached to app state.")
+        except Exception as exc:
+            logger.error("Failed to load ML Model: %s", exc)
+            app.state.ml_model = None
+            app.state.ml_device = None
+
     yield
     await close_db()
     logger.info("MongoDB connection closed. Shutdown complete.")
@@ -114,6 +139,8 @@ app.include_router(auth.router,      prefix=settings.api_prefix)
 app.include_router(diagnosis.router, prefix=settings.api_prefix)
 app.include_router(cases.router,     prefix=settings.api_prefix)
 app.include_router(doctor.router,    prefix=settings.api_prefix)
+app.include_router(lesions.router,   prefix=settings.api_prefix)
+app.include_router(admin.router,     prefix=settings.api_prefix)
 
 
 # ── Global exception handler ──────────────────────────────────────────────────

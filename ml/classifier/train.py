@@ -248,11 +248,15 @@ def main() -> None:
 
     train_csv = data_dir / "train.csv"
     val_csv   = data_dir / "val.csv"
+    test_csv  = data_dir / "test.csv"
 
-    for f in [train_csv, val_csv]:
+    for f in [train_csv, val_csv, test_csv]:
         if not f.exists():
             sys.exit(f"[ERROR] Required file not found: {f}\n"
                      f"  → Run data/prepare_dataset.py first.")
+
+    # Image directory: where the raw .jpg files live on Drive
+    img_dir = Path(args.drive_root) / "ISIC_2019_Training_Input"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info(f"Device: {device}")
@@ -261,7 +265,8 @@ def main() -> None:
     loaders = get_dataloaders(
         train_csv=train_csv,
         val_csv=val_csv,
-        test_csv=data_dir / "test.csv",
+        test_csv=test_csv,
+        img_dir=img_dir,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         use_weighted_sampler=not args.no_weighted_sampler,

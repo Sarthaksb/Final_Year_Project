@@ -39,6 +39,7 @@ from torch.cuda.amp import autocast
 
 from ml.classifier.dataset import ISIC2019_CLASSES, get_dataloaders
 from ml.classifier.model import build_model
+from ml.classifier.calibration import compute_ece
 from ml.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -164,6 +165,7 @@ def build_report(
     y_true, y_pred, y_probs,
     auc_scores: dict,
     out_path: Path,
+    ece: float = 0.0,
 ) -> None:
     report = classification_report(
         y_true, y_pred,
@@ -184,12 +186,13 @@ def build_report(
 
     lines = [
         "=" * 65,
-        "ISIC 2019 Classifier — Test Set Evaluation",
+        "ISIC 2019 Classifier -- Test Set Evaluation",
         "=" * 65,
         f"Overall Accuracy : {overall_acc:.4f}",
+        f"ECE (calibration) : {ece:.4f}  (lower is better; 0 = perfect)",
         "",
-        f"★ Melanoma (MEL) Recall : {mel_recall:.4f}  →  {mel_flag}",
-        "  (Threshold: 0.80 — missing melanoma = life-threatening false negative)",
+        f"* Melanoma (MEL) Recall : {mel_recall:.4f}  ->  {mel_flag}",
+        "  (Threshold: 0.80 -- missing melanoma = life-threatening false negative)",
         "",
         "-" * 65,
         "Per-Class Classification Report:",
@@ -238,10 +241,13 @@ def main() -> None:
     # Data
     project_root = Path(__file__).resolve().parent.parent.parent
     data_dir = Path(args.data_dir) if args.data_dir else project_root / "data" / "processed"
+    # Image directory: where the raw .jpg files live on Drive
+    img_dir = drive_root / "ISIC_2019_Training_Input"
     loaders = get_dataloaders(
         train_csv=data_dir / "train.csv",
         val_csv=data_dir / "val.csv",
         test_csv=data_dir / "test.csv",
+        img_dir=img_dir,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         use_weighted_sampler=False,   # eval: no oversampling
@@ -257,12 +263,16 @@ def main() -> None:
     log.info("Running inference on test set ...")
     y_true, y_pred, y_probs = run_inference(model, loaders["test"], device)
 
+    # ECE
+    ece = compute_ece(y_probs, y_true)
+    log.info("ECE = %.4f", ece)
+
     # Plots
     plot_confusion_matrix(y_true, y_pred, out_dir / "confusion_matrix.png")
     auc_scores = plot_roc_curves(y_true, y_probs, out_dir / "roc_curves.png")
 
     # Report
-    build_report(y_true, y_pred, y_probs, auc_scores, out_dir / "evaluation_report.txt")
+    build_report(y_true, y_pred, y_probs, auc_scores, out_dir / "evaluation_report.txt", ece=ece)
 
 
 if __name__ == "__main__":

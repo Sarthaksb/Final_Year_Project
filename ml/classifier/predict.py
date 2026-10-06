@@ -36,8 +36,23 @@ from PIL import Image
 from ml.classifier.dataset import ISIC2019_CLASSES, get_val_transform
 from ml.classifier.model import build_model
 from ml.utils.logger import get_logger
+from ml.classifier.calibration import (
+    apply_temperature,
+    is_ood,
+    load_ood_stats,
+    load_temperature,
+)
 
 log = get_logger(__name__)
+
+# -- Load calibration artefacts at import time (graceful: files may not yet exist) --
+_CAL_DIR = Path(__file__).parent
+_TEMPERATURE: float = load_temperature(_CAL_DIR / "temperature.json")
+try:
+    _OOD_STATS: dict | None = load_ood_stats(_CAL_DIR / "ood_stats.json")
+except FileNotFoundError:
+    _OOD_STATS = None
+    log.warning("ood_stats.json not found -- OOD 3-sigma check disabled")
 
 CLASS_DESCRIPTIONS = {
     "MEL":  "Melanoma",
@@ -189,8 +204,23 @@ def predict(
 
     model.eval()
     with torch.no_grad():
-        logits = model(input_tensor)
-    probs = F.softmax(logits, dim=1).squeeze().cpu().numpy()
+        logits = model(input_tensor)                  # keep raw logits
+
+    # -- OOD gate: reject non-skin images before any classification -------
+    if is_ood(logits.squeeze(), ood_stats=_OOD_STATS):
+        return {
+            "ood_rejected": True,
+            "predicted_class":   None,
+            "predicted_label":   None,
+            "confidence":        None,
+            "description":       None,
+            "is_high_risk":      False,
+            "all_probabilities": {},
+            "gradcam_path":      None,
+        }
+
+    # -- Temperature-scaled probabilities ---------------------------------
+    probs = apply_temperature(logits, _TEMPERATURE).squeeze().cpu().numpy()
 
     pred_idx = int(probs.argmax())
     pred_class = ISIC2019_CLASSES[pred_idx]
@@ -215,6 +245,7 @@ def predict(
         )
 
     result = {
+        "ood_rejected":      False,
         "predicted_class":   pred_class,
         "predicted_label":   pred_idx,
         "confidence":        round(confidence, 4),

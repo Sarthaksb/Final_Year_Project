@@ -41,5 +41,6 @@ class DoctorCaseOut(BaseModel):
     symptoms: dict[str, bool]
     result: Optional[DiagnosisOut] = None
     doctor_review: Optional[ReviewOut] = None
+    lesion_id: Optional[str] = None
 
     model_config = {"from_attributes": True}

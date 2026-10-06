@@ -2,3 +2,8 @@ langgraph>=0.2.0
 langchain-google-genai>=1.0.0
 langchain-core>=0.2.0
 python-dotenv>=1.0.0
+# Phase 11B: RAG
+sentence-transformers>=2.7.0
+faiss-cpu>=1.7.4
+# Gemini embedding fallback (if sentence-transformers unavailable)
+google-generativeai>=0.5.0

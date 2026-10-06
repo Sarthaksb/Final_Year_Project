@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback, DragEvent, ChangeEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, DragEvent, ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { analyzeImage, SymptomForm } from '../../api/diagnosis'
+import { useTranslation } from 'react-i18next'
+import { analyzeImage, checkImageQuality, SymptomForm, getLesions, Lesion } from '../../api/diagnosis'
 import { useToast } from '../../components/Toast'
 
 const SYMPTOMS: { key: keyof SymptomForm; label: string; desc: string; risk: 'high' | 'medium' }[] = [
@@ -27,8 +28,22 @@ export default function Upload() {
   })
   const [loading, setLoading]   = useState(false)
   const [progress, setProgress] = useState(0)
+  
+  const [qualityWarnings, setQualityWarnings] = useState<string[]>([])
+  const [qualityChecking, setQualityChecking] = useState(false)
+  const [qualityReject, setQualityReject] = useState(false)
+  const [proceedAnyway, setProceedAnyway] = useState(false)
+
+  const [lesions, setLesions] = useState<Lesion[]>([])
+  const [selectedLesionId, setSelectedLesionId] = useState<string>('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const { t } = useTranslation()
+
+  useEffect(() => {
+    getLesions().then(setLesions).catch(() => {})
+  }, [])
 
   const applyFile = useCallback((f: File) => {
     if (!ACCEPT_TYPES.includes(f.type)) {
@@ -41,6 +56,19 @@ export default function Upload() {
     }
     setFile(f)
     setPreview(URL.createObjectURL(f))
+    setQualityWarnings([])
+    setQualityReject(false)
+    setProceedAnyway(false)
+    setQualityChecking(true)
+    
+    checkImageQuality(f).then(res => {
+      setQualityWarnings(res.messages)
+      setQualityReject(res.reject)
+    }).catch(err => {
+      console.error(err)
+    }).finally(() => {
+      setQualityChecking(false)
+    })
   }, [toast])
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -61,11 +89,21 @@ export default function Upload() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!file) { toast.warning('Please select an image first.'); return }
+    if (qualityWarnings.length > 0 && !proceedAnyway && !qualityReject) {
+      setProceedAnyway(true)
+      toast.warning('Please review quality warnings before proceeding.')
+      return
+    }
+    if (qualityReject) {
+      toast.error('Image quality is too low for analysis. Please retake.')
+      return
+    }
+    
     setLoading(true)
     setProgress(0)
     const tick = setInterval(() => setProgress(p => Math.min(p + (Math.random() * 5 + 2), 90)), 500)
     try {
-      const result = await analyzeImage(file, symptoms)
+      const result = await analyzeImage(file, symptoms, selectedLesionId || undefined)
       clearInterval(tick)
       setProgress(100)
       sessionStorage.setItem('last_result', JSON.stringify(result))
@@ -97,13 +135,26 @@ export default function Upload() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand-600">
               <path d="M2 12h4l3-9 5 18 3-9h5"/>
             </svg>
-            <span className="text-xs font-semibold text-brand-700">AI Analysis</span>
+            <span className="text-xs font-semibold text-brand-700">{t('upload.title')}</span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">New Diagnostic Scan</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('upload.title')}</h1>
           <p className="text-gray-500 text-sm max-w-lg mx-auto leading-relaxed">
-            Upload a clear, well-lit photo of the skin lesion. Provide accurate symptom
-            information to improve the AI's triage accuracy.
+            {t('upload.subtitle')}
           </p>
+        </div>
+
+        {/* ── Photo Tips Panel ─────────────────────────────────── */}
+        <div className="mb-6 bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            {t('upload.tips.title')}
+          </h3>
+          <ul className="grid grid-cols-2 gap-2 text-xs text-blue-800">
+            <li className="flex items-center gap-1.5">✓ {t('upload.tips.t1')}</li>
+            <li className="flex items-center gap-1.5">✓ {t('upload.tips.t2')}</li>
+            <li className="flex items-center gap-1.5">✓ {t('upload.tips.t3')}</li>
+            <li className="flex items-center gap-1.5">✓ {t('upload.tips.t4')}</li>
+          </ul>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -156,11 +207,33 @@ export default function Upload() {
                     <line x1="12" y1="3" x2="12" y2="15"/>
                   </svg>
                 </div>
-                <p className="text-gray-900 font-semibold mb-1">Drag & drop an image here</p>
+                <p className="text-gray-900 font-semibold mb-1">{t('upload.dropzone')}</p>
                 <p className="text-gray-500 text-sm mb-3">
-                  or <span className="text-brand-600 font-medium">click to browse files</span>
+                  <span className="text-brand-600 font-medium cursor-pointer" onClick={() => fileInputRef.current?.click()}>{t('upload.browse')}</span>
                 </p>
                 <p className="text-xs text-gray-400 font-mono">JPEG, PNG, WebP · Max {MAX_SIZE_MB}MB</p>
+              </div>
+            )}
+            
+            {/* Quality warnings */}
+            {qualityChecking && (
+              <div className="mx-4 mb-4 text-xs text-blue-600 animate-pulse text-center">
+                {t('upload.quality_check')}
+              </div>
+            )}
+            {!qualityChecking && qualityWarnings.length > 0 && (
+              <div className={`mx-4 mb-4 p-4 rounded-xl border ${qualityReject ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+                <h4 className={`text-sm font-bold flex items-center gap-2 mb-2 ${qualityReject ? 'text-red-700' : 'text-amber-700'}`}>
+                  ⚠️ {t('upload.quality_warning')}
+                </h4>
+                <ul className="text-xs text-gray-700 space-y-1 mb-3">
+                  {qualityWarnings.map((w, i) => <li key={i}>• {w}</li>)}
+                </ul>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary text-xs px-3 py-1.5 bg-white">
+                    {t('upload.retake')}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -177,8 +250,7 @@ export default function Upload() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <label className="block text-sm font-bold text-gray-900">Clinical Symptoms</label>
-                <p className="text-xs text-gray-500 mt-0.5">Select all that apply to improve triage accuracy</p>
+                <label className="block text-sm font-bold text-gray-900">{t('upload.symptoms')}</label>
               </div>
               {activeCount > 0 && (
                 <span className="text-[11px] font-bold px-2.5 py-1 bg-brand-50 text-brand-700 rounded-full border border-brand-200 scale-in">
@@ -219,7 +291,7 @@ export default function Upload() {
                       <div className="flex items-center gap-1.5 mb-0.5">
                         {active && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${riskStyles.dot}`} />}
                         <span className={`text-sm font-semibold truncate ${active ? riskStyles.label : 'text-gray-800'}`}>
-                          {label}
+                          {t(`upload.symptom_${key.split('_').pop()}`) || label}
                         </span>
                       </div>
                       <div className="text-[11px] text-gray-400 leading-tight">{desc}</div>
@@ -230,6 +302,23 @@ export default function Upload() {
             </div>
           </div>
 
+          {/* ── Lesion Selection ───────────────────────────────── */}
+          {lesions.length > 0 && (
+            <div className="card p-6">
+              <label className="block text-sm font-bold text-gray-900 mb-2">Track an Existing Lesion? (Optional)</label>
+              <select
+                value={selectedLesionId}
+                onChange={e => setSelectedLesionId(e.target.value)}
+                className="input-field"
+              >
+                <option value="">-- Do not track / New lesion --</option>
+                {lesions.map(l => (
+                  <option key={l._id} value={l._id}>{l.label} ({l.body_site})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* ── Action / Progress ──────────────────────────────── */}
           <div className="relative">
             {loading ? (
@@ -237,7 +326,7 @@ export default function Upload() {
                 <div className="flex justify-between text-xs text-gray-700 mb-2.5 font-medium">
                   <span className="flex items-center gap-2">
                     <span className="w-3.5 h-3.5 rounded-full border-2 border-brand-600 border-t-transparent animate-spin" />
-                    AI Agent is analyzing your scan...
+                    {t('upload.analyzing')}
                   </span>
                   <span className="font-mono font-bold text-brand-700">{Math.round(progress)}%</span>
                 </div>
@@ -251,14 +340,14 @@ export default function Upload() {
             ) : (
               <button
                 type="submit"
-                disabled={!file}
+                disabled={!file || qualityChecking || qualityReject}
                 className="btn-primary w-full py-4 rounded-xl text-base flex items-center justify-center gap-3
                            disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M2 12h4l3-9 5 18 3-9h5"/>
                 </svg>
-                Analyze Scan
+                {qualityWarnings.length > 0 && !proceedAnyway ? t('upload.proceed_anyway') : t('upload.analyze_btn')}
               </button>
             )}
           </div>

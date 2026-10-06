@@ -18,14 +18,17 @@ import logging
 import os
 import sys
 import uuid
+import cv2
+import numpy as np
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
 from api.dependencies import get_current_user
 from core.config import settings
 from crud.case import create_case
+from models.case import Case
 from crud.diagnosis import run_rag
 from models.diagnosis import DiagnosisResult
 from models.user import User
@@ -74,43 +77,39 @@ def _validate_image_magic(content: bytes) -> str:
     )
 
 
-# ── Mock prediction (used when no checkpoint exists) ─────────────────────────
-
-_MOCK_RESULT = {
-    "predicted_class":  "NV",
-    "predicted_label":  1,
-    "confidence":       0.82,
-    "description":      "Melanocytic Nevus",
-    "is_high_risk":     False,
-    "all_probabilities": {
-        "MEL": 0.05, "NV": 0.82, "BCC": 0.03,
-        "AK":  0.02, "BKL": 0.04, "DF": 0.01,
-        "VASC": 0.02, "SCC": 0.01,
-    },
-    "gradcam_path": None,
-}
-
-
-def _run_ml_predict(image_path: Path) -> dict:
+def _run_ml_predict(image_path: Path, request: Request) -> dict:
     """
-    Attempt to run the real EfficientNet-B0 inference.
-    Falls back to mock result if checkpoint is missing.
+    Attempt to run the real EfficientNet-B0 inference using the globally loaded model.
+    If the model is unavailable, return MODEL_UNAVAILABLE error instead of a fake prediction.
     """
-    ckpt = settings.model_checkpoint_path
-    if not ckpt or not Path(ckpt).exists():
-        logger.debug("No checkpoint found — using mock prediction")
-        return _MOCK_RESULT.copy()
+    model = getattr(request.app.state, "ml_model", None)
+    device = getattr(request.app.state, "ml_device", None)
+
+    if model is None or device is None:
+        logger.warning("Inference attempted but ML Model is unavailable in app state.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="MODEL_UNAVAILABLE: The diagnostic model is currently offline."
+        )
 
     try:
-        from ml.classifier.predict import load_model, predict
-        model, device = load_model(ckpt)
+        from ml.classifier.predict import predict
         return predict(str(image_path), model, device, save_gradcam=False)
     except Exception as exc:
-        logger.warning("ML predict error (%s) — falling back to mock", exc)
-        return _MOCK_RESULT.copy()
+        logger.error("ML predict error (%s)", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during model inference."
+        )
 
 
-def _run_triage(predicted_class: str, confidence: float, symptoms: dict) -> dict:
+def _run_triage(
+    predicted_class: str,
+    confidence: float,
+    symptoms: dict,
+    all_probs: dict | None = None,
+    is_lesion_changed: bool = False,
+) -> dict:
     """Run the rule-based triage scorer from triage/scoring.py."""
     try:
         from triage.scoring import compute_urgency
@@ -118,6 +117,8 @@ def _run_triage(predicted_class: str, confidence: float, symptoms: dict) -> dict
             confidence=confidence,
             predicted_class=predicted_class,
             symptoms=symptoms,
+            all_probabilities=all_probs,
+            is_lesion_changed=is_lesion_changed,
         )
         return {
             "urgency":         result.urgency,
@@ -125,7 +126,7 @@ def _run_triage(predicted_class: str, confidence: float, symptoms: dict) -> dict
             "urgency_score":   result.score,
         }
     except Exception as exc:
-        logger.warning("Triage error (%s) — using LOW fallback", exc)
+        logger.warning("Triage error (%s) -- using LOW fallback", exc)
         return {"urgency": "LOW", "urgency_reasons": ["Triage unavailable"], "urgency_score": 1}
 
 
@@ -157,7 +158,58 @@ def _run_agent(predicted_class: str, confidence: float, symptoms: dict) -> dict:
         return {"status": "ERROR", "explanation": f"Agent error: {str(exc)[:200]}"}
 
 
-# ── Main endpoint ─────────────────────────────────────────────────────────────
+# ── 1. Image Quality Check ──────────────────────────────────────────────────────
+
+@router.post("/check-quality")
+async def check_image_quality(image: UploadFile = File(...)):
+    """
+    Check uploaded image for blur, brightness, and resolution before analysis.
+    Returns warnings or reject flag.
+    """
+    contents = await image.read()
+    nparr = np.frombuffer(contents, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    if img is None:
+        raise HTTPException(status_code=400, detail="Invalid image file.")
+        
+    height, width, _ = img.shape
+    
+    # Calculate blur using Laplacian variance
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    lap_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+    
+    # Calculate mean brightness
+    brightness = np.mean(gray)
+    
+    warnings = []
+    reject = False
+    
+    if height < 200 or width < 200:
+        warnings.append("Resolution is very low. Please capture closer or use a higher quality camera.")
+        reject = True
+        
+    if lap_var < 50:
+        warnings.append("Image appears significantly blurry. Please retake keeping the camera steady.")
+        if lap_var < 20: reject = True
+    elif lap_var < 100:
+        warnings.append("Image is slightly blurry. Consider retaking for better results.")
+        
+    if brightness < 40:
+        warnings.append("Image is too dark. Please move to a well-lit area or use flash.")
+        if brightness < 20: reject = True
+    elif brightness > 230:
+        warnings.append("Image is overexposed (too bright). Reduce glare or flash.")
+        
+    return {
+        "blur_score": lap_var,
+        "brightness": brightness,
+        "resolution": f"{width}x{height}",
+        "reject": reject,
+        "messages": warnings
+    }
+
+# ── 2. Full pipeline ──────────────────────────────────────────────────────────
 
 @router.post(
     "/analyze",
@@ -167,6 +219,7 @@ def _run_agent(predicted_class: str, confidence: float, symptoms: dict) -> dict:
     response_description="Complete diagnosis result with urgency, agent explanation, and RAG source",
 )
 async def analyze(
+    request: Request,
     image: UploadFile = File(..., description="Skin lesion image (JPEG/PNG/WebP, max 10 MB)"),
     symptoms: str = Form(
         default="{}",
@@ -175,6 +228,7 @@ async def analyze(
             "{rapid_growth, bleeding, irregular_border, itching, pain}"
         ),
     ),
+    lesion_id: Optional[str] = Form(None, description="Optional ID of tracked lesion"),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -225,16 +279,43 @@ async def analyze(
         )
 
     # ── 4. ML prediction ──────────────────────────────────────────────────────
-    ml_result     = _run_ml_predict(save_path)
-    predicted_class: str          = ml_result["predicted_class"]
-    confidence:      float        = ml_result["confidence"]
-    description:     str          = ml_result["description"]
-    is_high_risk:    bool         = ml_result["is_high_risk"]
-    all_probs:       dict         = ml_result["all_probabilities"]
+    ml_result = _run_ml_predict(save_path, request)
+
+    # ── OOD gate: reject non-skin images before any triage/case creation ──────
+    if ml_result.get("ood_rejected"):
+        save_path.unlink(missing_ok=True)   # don't keep the rejected image
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": "invalid_image",
+                "message": (
+                    "The uploaded image does not appear to be a skin lesion photo. "
+                    "Please upload a clear, close-up photograph of the skin area of concern."
+                ),
+            },
+        )
+
+    predicted_class: str           = ml_result["predicted_class"]
+    confidence:      float         = ml_result["confidence"]
+    description:     str           = ml_result["description"]
+    is_high_risk:    bool          = ml_result["is_high_risk"]
+    all_probs:       dict          = ml_result["all_probabilities"]
     gradcam_path:    Optional[str] = ml_result.get("gradcam_path")
 
-    # ── 5. Triage scoring ─────────────────────────────────────────────────────
-    triage = _run_triage(predicted_class, confidence, symptoms_dict)
+    # ── Check for lesion changes ──────────────────────────────────────────────
+    is_lesion_changed = False
+    if lesion_id:
+        prev_case = await Case.find(Case.lesion_id == lesion_id).sort("-created_at").first_or_none()
+        if prev_case and prev_case.result:
+            p_probs = prev_case.result.all_probabilities
+            prev_score = p_probs.get("MEL", 0) + p_probs.get("BCC", 0) + p_probs.get("SCC", 0)
+            curr_score = all_probs.get("MEL", 0) + all_probs.get("BCC", 0) + all_probs.get("SCC", 0)
+            if curr_score - prev_score >= 0.15:
+                is_lesion_changed = True
+
+    # ── 5. Triage scoring (pass all_probs for malignancy score) ──────────────
+    triage = _run_triage(predicted_class, confidence, symptoms_dict, all_probs, is_lesion_changed)
+
 
     # ── 6. Agent orchestrator ─────────────────────────────────────────────────
     agent_result  = _run_agent(predicted_class, confidence, symptoms_dict)
@@ -267,6 +348,7 @@ async def analyze(
         image_path     = str(save_path),
         symptoms       = symptoms_dict,
         result         = diagnosis,
+        lesion_id      = lesion_id,
     )
 
     logger.info(

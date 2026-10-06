@@ -1,21 +1,21 @@
 """
 agent/test_agent.py
 -------------------
-Three test cases that each trigger a DIFFERENT branch of the orchestrator.
+Test suite for the dermatology orchestrator agent.
 
 Run with:
     python -m agent.test_agent          (from project root)
   or
     python agent/test_agent.py
 
-Expected output
----------------
-  [Test 1] Branch triggered: urgent    ← red flag (bleeding) overrides low confidence
-  [Test 2] Branch triggered: followup  ← low confidence, no red flags
-  [Test 3] Branch triggered: normal    ← high confidence, no red flags
+Tests 1-3: Branch routing (requires GEMINI_API_KEY)
+  [Test 1] Branch triggered: urgent    -- red flag (bleeding) overrides low confidence
+  [Test 2] Branch triggered: followup  -- low confidence, no red flags
+  [Test 3] Branch triggered: normal    -- high confidence, no red flags
 
-The Gemini API is called for tests 1–3. Set GEMINI_API_KEY in your .env file
-before running.
+Tests 4-5: Guardrail (pure Python, NO API key required)
+  [Test 4] Forbidden phrase detected and fallback returned
+  [Test 5] Urgency override detected and fallback returned
 """
 
 from __future__ import annotations
@@ -85,13 +85,13 @@ TEST_CASES: list[dict] = [
 # Runner
 # ---------------------------------------------------------------------------
 
-SEPARATOR = "─" * 70
+SEPARATOR = "-" * 70
 
 
 def run_tests() -> None:
-    print(f"\n{'═' * 70}")
-    print("  Dermatology Orchestrator — Branch Verification Test")
-    print(f"{'═' * 70}\n")
+    print(f"\n{'=' * 70}")
+    print("  Dermatology Orchestrator -- Branch Verification Test")
+    print(f"{'=' * 70}\n")
 
     passed = 0
     expected_branches = [
@@ -113,8 +113,8 @@ def run_tests() -> None:
             branch = final_state.get("branch", "UNKNOWN")
             result = final_state.get("result", {})
 
-            status_symbol = "✓" if branch == expected else "✗"
-            print(f"\n  [{status_symbol}] Branch triggered : {branch.upper()}")
+            status_symbol = "[PASS]" if branch == expected else "[FAIL]"
+            print(f"\n  {status_symbol} Branch triggered : {branch.upper()}")
             print(f"      Expected       : {expected.upper()}")
             print(f"      Result status  : {result.get('status', 'N/A')}")
 
@@ -129,22 +129,96 @@ def run_tests() -> None:
             if branch == expected:
                 passed += 1
             else:
-                print(f"\n  ⚠ UNEXPECTED BRANCH — check triage_node logic")
+                print(f"\n  [!] UNEXPECTED BRANCH -- check triage_node logic")
 
         except Exception as exc:  # noqa: BLE001
-            print(f"\n  [✗] ERROR in test {i}: {exc}")
+            print(f"\n  [FAIL] ERROR in test {i}: {exc}")
             import traceback
             traceback.print_exc()
 
         print()
 
-    print(f"{'═' * 70}")
+    print(f"{'=' * 70}")
     print(f"  Results: {passed}/{len(TEST_CASES)} tests hit the expected branch")
-    print(f"{'═' * 70}\n")
+    print(f"{'=' * 70}\n")
 
     if passed < len(TEST_CASES):
         sys.exit(1)
 
 
+# ---------------------------------------------------------------------------
+# Guardrail tests (pure Python -- no Gemini API)
+# ---------------------------------------------------------------------------
+
+GUARDRAIL_TESTS: list[dict] = [
+    # Test 4: Forbidden phrase triggers fallback
+    {
+        "_label": "Test 4 -- GUARDRAIL (forbidden phrase 'no cancer' triggers fallback)",
+        "result": {
+            "status":        "NORMAL",
+            "predicted_class": "NV",
+            "explanation":   "Good news, there is no cancer and you are completely fine.",
+        },
+        "triage_urgency": "LOW",
+        "expect_triggered": True,
+    },
+    # Test 5: Urgency override triggers fallback
+    {
+        "_label": "Test 5 -- GUARDRAIL (urgency override: triage=HIGH, LLM says NORMAL)",
+        "result": {
+            "status":        "NORMAL",   # LLM trying to downgrade from HIGH -> violation
+            "predicted_class": "MEL",
+            "explanation":   "The lesion is likely benign and monitoring is sufficient.",
+        },
+        "triage_urgency": "HIGH",
+        "expect_triggered": True,
+    },
+]
+
+
+def run_guardrail_tests() -> int:
+    """Pure-Python guardrail tests. Returns number of failures."""
+    from agent.guardrails import apply_guardrails
+
+    print(f"\n{'=' * 70}")
+    print("  Guardrail Unit Tests (no API key required)")
+    print(f"{'=' * 70}\n")
+
+    failures = 0
+    for test in GUARDRAIL_TESTS:
+        label         = test["_label"]
+        result_in     = dict(test["result"])      # copy -- apply_guardrails may mutate
+        urgency       = test["triage_urgency"]
+        expect_trig   = test["expect_triggered"]
+
+        out = apply_guardrails(result_in, triage_urgency=urgency)
+        triggered = out.get("guardrail_triggered", False)
+
+        ok     = triggered == expect_trig
+        symbol = "[PASS]" if ok else "[FAIL]"
+        if not ok:
+            failures += 1
+
+        print(f"{SEPARATOR}")
+        print(f"  {label}")
+        print(SEPARATOR)
+        print(f"  {symbol} guardrail_triggered={triggered}  (expected={expect_trig})")
+        if triggered:
+            print(f"      violations: {out.get('guardrail_violations', [])}")
+        print()
+
+    print(f"{'=' * 70}")
+    print(f"  Guardrail results: {len(GUARDRAIL_TESTS) - failures}/{len(GUARDRAIL_TESTS)} passed")
+    print(f"{'=' * 70}\n")
+    return failures
+
+
 if __name__ == "__main__":
+    # Run guardrail tests first (no API key needed)
+    guardrail_failures = run_guardrail_tests()
+
+    # Run branch-routing tests (needs GEMINI_API_KEY)
     run_tests()
+
+    if guardrail_failures:
+        sys.exit(1)

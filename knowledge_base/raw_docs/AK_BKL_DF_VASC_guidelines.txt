@@ -1,0 +1,98 @@
+AK - Actinic Keratosis | BKL - Benign Keratosis-like Lesion | DF - Dermatofibroma | VASC - Vascular Lesion
+==========================================================================================================
+Source: Adapted from AAD dermatology guidelines (educational summary)
+
+=== AK: ACTINIC KERATOSIS ===
+
+OVERVIEW
+Actinic keratosis (AK) is a pre-malignant lesion caused by cumulative UV damage.
+It is the precursor to squamous cell carcinoma (SCC). Treatment is recommended to
+prevent malignant transformation.
+
+CLINICAL FEATURES
+- Rough, scaly patch on sun-damaged skin
+- Flat to slightly raised patch with dry, scaly surface
+- Itching, burning, or tenderness in the affected area
+- Hard, wart-like surface; color varies (pink, red, or brown)
+- Commonly on face, lips, ears, back of hands, forearms, scalp, neck
+
+MANAGEMENT
+- Cryotherapy: liquid nitrogen — most common treatment
+- Topical agents: 5-FU, imiquimod, ingenol mebutate for field treatment
+- Photodynamic therapy: for multiple/field AKs
+- All AKs should be treated — 10% may progress to SCC within 10 years
+- Annual skin checks recommended after diagnosis
+
+PATIENT ADVICE
+- Strict UV avoidance and SPF 50+ daily
+- Monitor and consult a doctor if the lesion changes, grows, bleeds, or becomes painful
+
+=== BKL: BENIGN KERATOSIS-LIKE LESION (Seborrhoeic Keratosis) ===
+
+OVERVIEW
+Seborrhoeic keratoses are benign, non-cancerous growths that become more common
+with age. They are entirely benign but can be mistaken for melanoma or BCC.
+
+CLINICAL FEATURES
+- "Stuck-on" appearance — waxy, warty surface
+- Range from light tan to dark brown or black
+- Varies in size from a few millimetres to several centimetres
+- Multiple lesions common; found on trunk, face, shoulders, back
+- NOT caused by sun exposure; NOT pre-malignant
+
+MANAGEMENT
+- No treatment required if benign
+- Removal for cosmetic reasons or if inflamed/irritated (cryotherapy, curettage)
+- Biopsy if diagnosis is uncertain (cannot reliably exclude melanoma clinically)
+
+PATIENT ADVICE
+- Lesions are benign — no cancer risk
+- Monitor and consult a doctor if any individual lesion changes rapidly, bleeds,
+  or becomes asymmetric — these may indicate a co-existing melanoma
+
+=== DF: DERMATOFIBROMA ===
+
+OVERVIEW
+Dermatofibromas are benign fibrous nodules, most commonly found on the legs.
+They are harmless and require no treatment unless symptomatic or cosmetically bothersome.
+
+CLINICAL FEATURES
+- Firm, raised bump, usually 0.5–1.5cm
+- Typically pink, red, grey, or brown
+- "Dimple sign": pinching the lesion causes it to dimple inward
+- Slightly tender to touch; may itch
+
+MANAGEMENT
+- No treatment required
+- Surgical excision if cosmetically bothersome or symptomatic
+- Biopsy if diagnosis uncertain (rare malignant variants: dermatofibrosarcoma protuberans)
+
+PATIENT ADVICE
+- Lesion is benign; monitoring sufficient
+- Monitor and consult a doctor if it changes, grows rapidly, or becomes painful
+
+=== VASC: VASCULAR LESION ===
+
+OVERVIEW
+Vascular lesions include a heterogeneous group: haemangiomas, pyogenic granulomas,
+angiokeratomas, cherry angiomas. Most are benign but pyogenic granuloma bleeds
+readily and may mimic amelanotic melanoma.
+
+CLINICAL FEATURES
+- Pyogenic granuloma: rapidly growing, friable, bleeds easily — RED FLAG for referral
+- Cherry angioma: small, bright-red dome; extremely common; entirely benign
+- Angiokeratoma: dark red/purple warty papule; may mimic melanoma
+
+MANAGEMENT
+- Cherry angioma: no treatment required
+- Pyogenic granuloma: excision or shave biopsy — always send for histology
+- Any bleeding vascular lesion should be evaluated to exclude amelanotic melanoma
+
+PATIENT ADVICE
+- Monitor and consult a doctor if the lesion bleeds, grows rapidly, or changes
+- Bleeding lesions require prompt evaluation regardless of apparent cause
+
+DISCLAIMER (ALL CLASSES)
+This information is for decision support only. No AI output should be interpreted
+as a definitive diagnosis. A qualified dermatologist must evaluate all lesions.
+Never state "you are fine" or "no cancer" based on AI screening alone.

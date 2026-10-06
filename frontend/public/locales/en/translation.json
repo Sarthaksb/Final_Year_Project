@@ -1,0 +1,40 @@
+{
+  "upload": {
+    "title": "New Skin Scan",
+    "subtitle": "Upload a clear, close-up photo of your skin lesion for AI analysis.",
+    "tips": {
+      "title": "Photo Tips",
+      "t1": "Ensure good lighting",
+      "t2": "Keep camera steady",
+      "t3": "Focus on the lesion",
+      "t4": "Remove hair/clothing"
+    },
+    "dropzone": "Drag & drop your image here",
+    "browse": "Browse Files",
+    "quality_check": "Checking image quality...",
+    "quality_warning": "Quality Warning",
+    "retake": "Retake Photo",
+    "proceed_anyway": "Proceed Anyway",
+    "symptoms": "Do you have any of these symptoms?",
+    "symptom_growth": "Rapid growth",
+    "symptom_bleeding": "Bleeding or oozing",
+    "symptom_border": "Irregular border",
+    "symptom_itching": "Itching",
+    "symptom_pain": "Pain or tenderness",
+    "analyze_btn": "Analyze Lesion",
+    "analyzing": "Analyzing..."
+  },
+  "results": {
+    "title": "Analysis Results",
+    "urgency": {
+      "HIGH": "HIGH URGENCY: Immediate medical attention required. Please consult a dermatologist as soon as possible.",
+      "MEDIUM": "MEDIUM URGENCY: Monitor closely and consult a doctor if the lesion changes.",
+      "LOW": "LOW URGENCY: Routine monitoring. Monitor and consult a doctor if it changes."
+    },
+    "diagnosis": "AI Diagnosis",
+    "confidence": "Confidence",
+    "symptoms_reported": "Symptoms Reported",
+    "explanation": "Explanation",
+    "medical_kb": "Medical Knowledge Base"
+  }
+}

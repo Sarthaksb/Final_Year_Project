@@ -3,7 +3,22 @@ triage/scoring.py
 -----------------
 Rule-based triage scoring function.
 
-Combines model confidence + red-flag symptoms into a single urgency label:
+Combines model confidence + red-flag symptoms + malignancy score into a
+single urgency label:
+
+    HIGH   — any red-flag symptom is present (bleeding, rapid_growth,
+              irregular_border, OR the itching+pain combo), regardless of
+              confidence.  Clinically dangerous symptoms always escalate.
+
+    MEDIUM — no red flag AND any of:
+              * confidence < 0.60
+              * predicted class is in {MEL, SCC}
+              * malignancy_score (P(MEL)+P(BCC)+P(SCC)) >= 0.30
+              * P(MEL) >= 0.20 OR P(SCC) >= 0.20
+
+    LOW    — all conditions above clear.  Always appended with the
+              disclaimer: "Monitor and consult a doctor if it changes."
+
 
     HIGH   — any red-flag symptom is present (bleeding, rapid_growth,
               irregular_border, OR the itching+pain combo), regardless of
@@ -53,6 +68,9 @@ from agent.config import (
     CONFIDENCE_THRESHOLD,
     RED_FLAG_SYMPTOMS,
     URGENT_COMBO,
+    MALIGNANCY_SCORE_MEDIUM,
+    HIGH_RISK_PROB_MEDIUM,
+    LOW_URGENCY_DISCLAIMER,
 )
 
 # ── High-risk class set (explicit list — no ML, no model call) ────────────────
@@ -101,6 +119,8 @@ def compute_urgency(
     confidence: float,
     predicted_class: str,
     symptoms: dict[str, bool],
+    all_probabilities: dict[str, float] | None = None,
+    is_lesion_changed: bool = False,
 ) -> TriageResult:
     """
     Compute a triage urgency label from model outputs + symptom answers.
@@ -115,6 +135,13 @@ def compute_urgency(
         Symptom questionnaire answers.  Any key not present defaults to False.
         Recognised keys: rapid_growth, bleeding, irregular_border,
                          itching, pain (others are ignored, not error).
+    all_probabilities : dict[str, float] | None
+        Full 8-class softmax distribution from the model.  Used to compute
+        the malignancy score P(MEL)+P(BCC)+P(SCC).  If None, the score
+        defaults to 0.0 (safe fallback — class-name rules still apply).
+    is_lesion_changed : bool
+        If True, the lesion has tracked changes (e.g. malignancy score rose
+        by >= 0.15). Forces urgency to at least MEDIUM.
 
     Returns
     -------
@@ -161,6 +188,34 @@ def compute_urgency(
             f"High-risk class: {predicted_class.upper()} (confidence {confidence:.0%})"
         )
 
+    if is_lesion_changed:
+        medium_reasons.append("Lesion malignancy score increased by >= 0.15 since last review.")
+
+    # ── Malignancy score rules (use all_probabilities when available) ────────
+    _p = all_probabilities or {}
+    mel_prob = float(_p.get("MEL", 0.0))
+    bcc_prob = float(_p.get("BCC", 0.0))
+    scc_prob = float(_p.get("SCC", 0.0))
+    malignancy_score = mel_prob + bcc_prob + scc_prob
+
+    if malignancy_score >= MALIGNANCY_SCORE_MEDIUM:
+        reason = (
+            f"Malignancy score {malignancy_score:.2f} >= {MALIGNANCY_SCORE_MEDIUM} "
+            f"(P(MEL)={mel_prob:.2f}, P(BCC)={bcc_prob:.2f}, P(SCC)={scc_prob:.2f})"
+        )
+        if reason not in medium_reasons:
+            medium_reasons.append(reason)
+
+    if mel_prob >= HIGH_RISK_PROB_MEDIUM:
+        reason = f"P(MEL)={mel_prob:.2f} >= {HIGH_RISK_PROB_MEDIUM} threshold"
+        if reason not in medium_reasons:
+            medium_reasons.append(reason)
+
+    if scc_prob >= HIGH_RISK_PROB_MEDIUM:
+        reason = f"P(SCC)={scc_prob:.2f} >= {HIGH_RISK_PROB_MEDIUM} threshold"
+        if reason not in medium_reasons:
+            medium_reasons.append(reason)
+
     if medium_reasons:
         return TriageResult(
             urgency="MEDIUM",
@@ -176,7 +231,8 @@ def compute_urgency(
         score=_URGENCY_SCORE["LOW"],
         reasons=[
             f"No red-flag symptoms; {predicted_class.upper()} predicted "
-            f"with {confidence:.0%} confidence (>= {CONFIDENCE_THRESHOLD:.0%} threshold)"
+            f"with {confidence:.0%} confidence (>= {CONFIDENCE_THRESHOLD:.0%} threshold)",
+            LOW_URGENCY_DISCLAIMER,   # safety rule: always present on LOW
         ],
         confidence=confidence,
         predicted_class=predicted_class,
