@@ -83,14 +83,18 @@ def parse_args() -> argparse.Namespace:
 
 def mount_drive_if_colab() -> bool:
     """Mount Google Drive if running in Colab. Returns True if mounted."""
+    import os
+    if os.path.exists("/content/drive/MyDrive"):
+        log.info("Google Drive is already mounted.")
+        return True
     try:
-        import google.colab  # noqa: F401 — only available in Colab runtime
+        import google.colab  # noqa: F401
         from google.colab import drive
         drive.mount("/content/drive")
         log.info("Google Drive mounted at /content/drive")
         return True
-    except ImportError:
-        log.info("Not running in Colab — skipping Drive mount")
+    except Exception as e:
+        log.info(f"Skipping Drive mount: {e}")
         return False
 
 
@@ -116,7 +120,7 @@ def save_checkpoint(
     model: nn.Module,
     optimizer: AdamW,
     scheduler: CosineAnnealingLR,
-    best_val_acc: float,
+    best_val_bal_acc: float,
     best_mel_recall: float,
     is_best: bool,
 ) -> None:
@@ -125,7 +129,7 @@ def save_checkpoint(
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "scheduler_state_dict": scheduler.state_dict(),
-        "best_val_acc": best_val_acc,
+        "best_val_bal_acc": best_val_bal_acc,
         "best_mel_recall": best_mel_recall,
         "class_names": ISIC2019_CLASSES,
     }
@@ -199,6 +203,8 @@ def run_epoch(
     total = 0
     class_correct = [0] * len(ISIC2019_CLASSES)
     class_total   = [0] * len(ISIC2019_CLASSES)
+    mel_tn = 0
+    mel_fp = 0
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
@@ -224,6 +230,10 @@ def run_epoch(
                 mask = labels == i
                 class_correct[i] += (preds[mask] == labels[mask]).sum().item()
                 class_total[i]   += mask.sum().item()
+                
+            non_mel_mask = labels != MEL_CLASS_IDX
+            mel_tn += (preds[non_mel_mask] != MEL_CLASS_IDX).sum().item()
+            mel_fp += (preds[non_mel_mask] == MEL_CLASS_IDX).sum().item()
 
     avg_loss = total_loss / total
     accuracy = correct / total
@@ -231,7 +241,9 @@ def run_epoch(
         ISIC2019_CLASSES[i]: (class_correct[i] / class_total[i] if class_total[i] > 0 else 0.0)
         for i in range(len(ISIC2019_CLASSES))
     }
-    return avg_loss, accuracy, per_class_recall
+    bal_acc = sum(per_class_recall.values()) / len(ISIC2019_CLASSES)
+    mel_spec = mel_tn / (mel_tn + mel_fp) if (mel_tn + mel_fp) > 0 else 0.0
+    return avg_loss, bal_acc, per_class_recall, mel_spec
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -291,7 +303,7 @@ def main() -> None:
 
     # 6. Resume from checkpoint if requested
     start_epoch   = 1
-    best_val_acc  = 0.0
+    best_val_bal_acc  = 0.0
     best_mel_recall = 0.0
 
     if args.resume:
@@ -301,10 +313,10 @@ def main() -> None:
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
             scheduler.load_state_dict(ckpt["scheduler_state_dict"])
             start_epoch     = ckpt["epoch"] + 1
-            best_val_acc    = ckpt.get("best_val_acc", 0.0)
+            best_val_bal_acc    = ckpt.get("best_val_bal_acc", 0.0)
             best_mel_recall = ckpt.get("best_mel_recall", 0.0)
             log.info(f"Resumed from epoch {ckpt['epoch']} | "
-                     f"best_val_acc={best_val_acc:.4f} | best_mel_recall={best_mel_recall:.4f}")
+                     f"best_val_bal_acc={best_val_bal_acc:.4f} | best_mel_recall={best_mel_recall:.4f}")
 
             # Restore correct phase
             if start_epoch >= args.phase_b_start:
@@ -320,9 +332,9 @@ def main() -> None:
     if not log_exists:
         log_writer.writerow([
             "epoch", "phase",
-            "train_loss", "train_acc",
-            "val_loss", "val_acc",
-            "mel_recall", "lr",
+            "train_loss", "train_bal_acc",
+            "val_loss", "val_bal_acc",
+            "mel_recall", "mel_spec", "lr",
         ])
 
     # 8. Epoch loop
@@ -345,13 +357,13 @@ def main() -> None:
         current_lr = optimizer.param_groups[0]["lr"]
 
         # Train
-        train_loss, train_acc, _ = run_epoch(
+        train_loss, train_bal_acc, _, _ = run_epoch(
             model, loaders["train"], criterion, optimizer, scaler, device, is_train=True
         )
         scheduler.step()
 
         # Validate
-        val_loss, val_acc, val_recall = run_epoch(
+        val_loss, val_bal_acc, val_recall, val_mel_spec = run_epoch(
             model, loaders["val"], criterion, None, scaler, device, is_train=False
         )
         mel_recall = val_recall["MEL"]
@@ -360,31 +372,36 @@ def main() -> None:
         # Log
         log.info(
             f"Epoch {epoch:02d}/{args.epochs} [Ph{phase}] "
-            f"| train_loss={train_loss:.4f} acc={train_acc:.4f} "
-            f"| val_loss={val_loss:.4f} acc={val_acc:.4f} "
-            f"| MEL_recall={mel_recall:.4f} "
+            f"| train_loss={train_loss:.4f} bal_acc={train_bal_acc:.4f} "
+            f"| val_loss={val_loss:.4f} bal_acc={val_bal_acc:.4f} "
+            f"| MEL_rec={mel_recall:.4f} MEL_spec={val_mel_spec:.4f} "
             f"| lr={current_lr:.2e} | {elapsed:.0f}s"
         )
         log_writer.writerow([
             epoch, phase,
-            f"{train_loss:.4f}", f"{train_acc:.4f}",
-            f"{val_loss:.4f}", f"{val_acc:.4f}",
-            f"{mel_recall:.4f}", f"{current_lr:.2e}",
+            f"{train_loss:.4f}", f"{train_bal_acc:.4f}",
+            f"{val_loss:.4f}", f"{val_bal_acc:.4f}",
+            f"{mel_recall:.4f}", f"{val_mel_spec:.4f}", f"{current_lr:.2e}",
         ])
         log_file.flush()
 
-        # Primary save metric: MEL recall (safety-critical)
-        # Secondary: val accuracy
-        is_best = mel_recall > best_mel_recall
-        if is_best:
-            best_mel_recall = mel_recall
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
+        # Primary save metric: MEL recall if spec>=0.5 and bal_acc>=0.5
+        # Secondary: val balanced accuracy
+        is_best = False
+        if val_mel_spec >= 0.50 and val_bal_acc >= 0.50:
+            if mel_recall > best_mel_recall:
+                is_best = True
+                best_mel_recall = mel_recall
+                best_val_bal_acc = val_bal_acc
+        else:
+            if val_bal_acc > best_val_bal_acc:
+                is_best = True
+                best_val_bal_acc = val_bal_acc
 
         # Per-epoch checkpoint → Drive
         save_checkpoint(
             ckpt_dir, epoch, model, optimizer, scheduler,
-            best_val_acc, best_mel_recall, is_best,
+            best_val_bal_acc, best_mel_recall, is_best,
         )
 
         # Warn if MEL recall is dangerously low
@@ -393,7 +410,7 @@ def main() -> None:
 
     log_file.close()
     log.info(f"\n✅ Training complete.")
-    log.info(f"   Best val accuracy : {best_val_acc:.4f}")
+    log.info(f"   Best val bal_acc  : {best_val_bal_acc:.4f}")
     log.info(f"   Best MEL recall   : {best_mel_recall:.4f}")
     log.info(f"   Checkpoints saved : {ckpt_dir}")
     log.info(f"   Training log      : {log_csv}")
