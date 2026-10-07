@@ -17,6 +17,7 @@
 - **Dermoscopy vs. Phone-Photo Gap**: The model is trained almost entirely on dermoscopic images (captured with professional clinical equipment), but end users will upload standard smartphone photos. This distribution shift causes lower real-world accuracy and confidence compared to validation metrics.
 - **Skin-Tone Bias**: The ISIC dataset predominantly features lighter skin tones (Fitzpatrick types I-III). The model has not been sufficiently validated on darker skin types (types IV-VI) and may perform poorly or produce skewed confidence scores on diverse populations.
 - **OOD Handling**: Extremely noisy, out-of-focus, or non-skin images can confuse the model. A Laplacian variance check and OOD (Out-Of-Distribution) gating logic have been added to reject non-images.
+- **Lesion-level Data Split**: The dataset is split at the lesion level (grouped by lesion_id; patient IDs are not provided in ISIC 2019). Consequently, images from the same patient may appear in several splits if they have multiple distinct lesions.
 
 ## Failure Cases
 - **Low Confidence on Ambiguous Lesions**: Lesions that visually share features of melanoma (MEL) and benign keratosis (BKL) often yield split confidence.

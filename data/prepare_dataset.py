@@ -9,7 +9,7 @@ Expected Google Drive layout (set DRIVE_ROOT in your .env or pass --drive_root):
     │   ├── ISIC_0000000.jpg
     │   └── ...
     ├── ISIC_2019_Training_GroundTruth.csv    ← official label CSV  (REQUIRED)
-    └── ISIC_2019_Training_Metadata.csv       ← patient/lesion IDs  (REQUIRED)
+    └── ISIC_2019_Training_Metadata.csv       ← lesion/lesion IDs  (REQUIRED)
 
 Download both files from: https://challenge.isic-archive.com/data/#2019
 
@@ -19,12 +19,12 @@ What this script does:
   2. Removes exact duplicate image IDs (keeps first occurrence)
   3. Reports raw class distribution
   4. Loads ISIC_2019_Training_Metadata.csv and assigns a group_id per image:
-       - Images with a valid patient_id  → group_id = patient_id
-       - Images with patient_id = NaN   → group_id = "SYNTH_<image_id>"
+       - Images with a valid lesion_id  → group_id = lesion_id
+       - Images with lesion_id = NaN   → group_id = "SYNTH_<image_id>"
          (each NaN image is its own singleton group — no cross-leakage)
-  5. Patient-level stratified split: train / val / test (70 / 15 / 15)
+  5. Lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) stratified split: train / val / test (70 / 15 / 15)
        Uses StratifiedGroupKFold so:
-         a) All images of the same patient stay in one split
+         a) All images of the same lesion stay in one split
          b) Class distribution is kept reasonably balanced
          c) Zero-overlap assertions are enforced
   6. Prints class distribution and image/group counts for every split
@@ -134,7 +134,7 @@ def resolve_paths(dataset_root: str) -> tuple[Path, Path, Path, Path]:
         sys.exit(
             f"\n[ERROR] Metadata CSV not found: {meta_csv}\n"
             "  → Expected file name: ISIC_2019_Training_Metadata.csv\n"
-            "  → Patient-level splitting requires this file.\n"
+            "  → Lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) splitting requires this file.\n"
             "  → Download from: https://challenge.isic-archive.com/data/#2019\n"
             "  → The metadata CSV is a SEPARATE download from the ground-truth CSV."
         )
@@ -262,7 +262,7 @@ def class_distribution(df: pd.DataFrame, label: str = "") -> dict:
     print(f"\n{'─'*60}")
     print(f"  Class distribution {label}")
     if "group_id" in df.columns:
-        print(f"  Images: {total:,}  |  Unique groups (patients): {unique_groups:,}")
+        print(f"  Images: {total:,}  |  Unique groups (lesions): {unique_groups:,}")
     print(f"{'─'*60}")
     print(f"  {'Class':<6}  {'Description':<35}  {'Count':>6}  {'%':>6}")
     print(f"{'─'*60}")
@@ -276,90 +276,90 @@ def class_distribution(df: pd.DataFrame, label: str = "") -> dict:
     return dist
 
 
-# ── Patient-level group ID assignment ─────────────────────────────────────────
+# ── Lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) group ID assignment ─────────────────────────────────────────
 
 def assign_group_ids(df: pd.DataFrame, meta_csv: Path) -> pd.DataFrame:
     """
-    Load ISIC_2019_Training_Metadata.csv and merge patient_id onto the image
+    Load ISIC_2019_Training_Metadata.csv and merge lesion_id onto the image
     dataframe, then assign a group_id for splitting:
 
-      - Images with a valid patient_id  → group_id = patient_id
-      - Images with patient_id = NaN   → group_id = "SYNTH_<image_id>"
+      - Images with a valid lesion_id  → group_id = lesion_id
+      - Images with lesion_id = NaN   → group_id = "SYNTH_<image_id>"
         Each NaN image gets its own unique singleton group so MSK anonymous
         images cannot cause cross-split contamination.
 
     Returns df with a 'group_id' column added.
     """
-    print(f"\n[3a/5] Loading patient metadata: {meta_csv} ...")
+    print(f"\n[3a/5] Loading lesion metadata: {meta_csv} ...")
     meta = pd.read_csv(meta_csv)
 
-    if "patient_id" not in meta.columns:
+    if "lesion_id" not in meta.columns:
         sys.exit(
-            "\n[ERROR] ISIC_2019_Training_Metadata.csv does not contain a 'patient_id' column.\n"
+            "\n[ERROR] ISIC_2019_Training_Metadata.csv does not contain a 'lesion_id' column.\n"
             "  → Verify you downloaded the correct metadata file from the ISIC Archive."
         )
 
     # Keep only the columns we need
-    meta = meta[["image", "patient_id"]].copy()
+    meta = meta[["image", "lesion_id"]].copy()
 
     total_meta  = len(meta)
-    nan_count   = meta["patient_id"].isna().sum()
+    nan_count   = meta["lesion_id"].isna().sum()
     valid_count = total_meta - nan_count
 
     print(f"   Metadata rows      : {total_meta:,}")
-    print(f"   Valid patient_id   : {valid_count:,}")
-    print(f"   Missing patient_id : {nan_count:,}  "
+    print(f"   Valid lesion_id   : {valid_count:,}")
+    print(f"   Missing lesion_id : {nan_count:,}  "
           f"(MSK/anonymous images — each assigned a unique synthetic group)")
 
     # Merge metadata onto the cleaned image dataframe
     df = df.merge(meta, on="image", how="left")
 
     # Images in df that had no matching row in metadata at all
-    unmatched = df["patient_id"].isna().sum()
+    unmatched = df["lesion_id"].isna().sum()
     if unmatched > valid_count:
-        # Some images have no metadata entry at all (beyond the NaN patient_ids)
+        # Some images have no metadata entry at all (beyond the NaN lesion_ids)
         extra_unmatched = unmatched - nan_count
         if extra_unmatched > 0:
             print(f"   [WARNING] {extra_unmatched:,} images have no entry in the metadata CSV "
                   f"— treated as singleton groups.")
 
-    # Assign group_id: real patient_id or unique synthetic ID
-    nan_mask = df["patient_id"].isna()
-    df["group_id"] = df["patient_id"].astype(str)
+    # Assign group_id: real lesion_id or unique synthetic ID
+    nan_mask = df["lesion_id"].isna()
+    df["group_id"] = df["lesion_id"].astype(str)
     df.loc[nan_mask, "group_id"] = "SYNTH_" + df.loc[nan_mask, "image"]
 
-    # Drop the raw patient_id column (group_id is what we use from here on)
-    df = df.drop(columns=["patient_id"])
+    # Drop the raw lesion_id column (group_id is what we use from here on)
+    df = df.drop(columns=["lesion_id"])
 
     real_groups   = df.loc[~nan_mask, "group_id"].nunique()
     synth_groups  = nan_mask.sum()
     total_groups  = df["group_id"].nunique()
-    print(f"   Real patient groups (HAM10000 + BCN): {real_groups:,}")
+    print(f"   Real lesion groups (HAM10000 + BCN): {real_groups:,}")
     print(f"   Synthetic singleton groups (MSK/NaN): {synth_groups:,}")
     print(f"   Total unique groups                 : {total_groups:,}")
 
     return df
 
 
-# ── Patient-level stratified split ────────────────────────────────────────────
+# ── Lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) stratified split ────────────────────────────────────────────
 
-def split_dataset_patient_level(
+def split_dataset_lesion_level(
     df: pd.DataFrame,
     val_ratio: float,
     test_ratio: float,
     seed: int,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Patient-level stratified split using StratifiedGroupKFold.
+    Lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) stratified split using StratifiedGroupKFold.
 
     Guarantees:
-      1. All images of the same patient (group_id) stay in one split.
+      1. All images of the same lesion (group_id) stay in one split.
       2. Class distribution is kept reasonably balanced (best-effort).
       3. Zero-overlap assertions are verified after splitting.
 
     Split ratios target: train ≈ 70% | val ≈ 15% | test ≈ 15%
-    Exact ratios will vary slightly because we must keep entire patient groups
-    together — we cannot split a patient's images across boundaries.
+    Exact ratios will vary slightly because we must keep entire lesion groups
+    together — we cannot split a lesion's images across boundaries.
 
     StratifiedGroupKFold approach:
       Round 1: n_splits = round(1 / test_ratio) → yields ~test_ratio test fold
@@ -370,7 +370,7 @@ def split_dataset_patient_level(
     n_total   = len(df)
     n_groups  = group_ids.nunique()
 
-    print(f"\n[3/5] Patient-level stratified split ...")
+    print(f"\n[3/5] Lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) stratified split ...")
     print(f"      Total images  : {n_total:,}")
     print(f"      Total groups  : {n_groups:,}")
     print(f"      Target ratios : train={1-val_ratio-test_ratio:.0%} / "
@@ -417,18 +417,18 @@ def split_dataset_patient_level(
           f"| {test_df['group_id'].nunique():,} unique groups")
 
     # ── Zero-overlap assertions ───────────────────────────────────────────────
-    _verify_no_patient_overlap(train_df, val_df, test_df)
+    _verify_no_lesion_overlap(train_df, val_df, test_df)
 
     return train_df, val_df, test_df
 
 
-def _verify_no_patient_overlap(
+def _verify_no_lesion_overlap(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
 ) -> None:
     """
-    Assert that no group_id (patient) appears in more than one split.
+    Assert that no group_id (lesion) appears in more than one split.
     Raises AssertionError with a descriptive message if overlap is found.
     """
     train_groups = set(train_df["group_id"])
@@ -439,29 +439,40 @@ def _verify_no_patient_overlap(
     tt_overlap = train_groups & test_groups
     vt_overlap = val_groups   & test_groups
 
-    print("\n   Verifying zero patient/group overlap across splits ...")
+    print("\n   Verifying zero lesion/group overlap across splits ...")
 
     if tv_overlap:
         raise AssertionError(
-            f"[FAIL] Patient overlap detected: train ∩ val = {len(tv_overlap):,} groups\n"
+            f"[FAIL] Lesion overlap detected: train ∩ val = {len(tv_overlap):,} groups\n"
             f"       Example overlapping group_ids: {list(tv_overlap)[:5]}"
         )
     if tt_overlap:
         raise AssertionError(
-            f"[FAIL] Patient overlap detected: train ∩ test = {len(tt_overlap):,} groups\n"
+            f"[FAIL] Lesion overlap detected: train ∩ test = {len(tt_overlap):,} groups\n"
             f"       Example overlapping group_ids: {list(tt_overlap)[:5]}"
         )
     if vt_overlap:
         raise AssertionError(
-            f"[FAIL] Patient overlap detected: val ∩ test = {len(vt_overlap):,} groups\n"
+            f"[FAIL] Lesion overlap detected: val ∩ test = {len(vt_overlap):,} groups\n"
             f"       Example overlapping group_ids: {list(vt_overlap)[:5]}"
         )
 
     print("   ✅ train ∩ val  overlap : 0 groups")
     print("   ✅ train ∩ test overlap : 0 groups")
     print("   ✅ val   ∩ test overlap : 0 groups")
-    print("   ✅ Patient-level integrity verified — no leakage.")
+    print("   ✅ Lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) integrity verified — no leakage.")
 
+
+def verify_class_proportions(raw_dist, split_dist, split_name, total_raw, total_split):
+    print(f"\n   Verifying {split_name} class proportions (target: ±2% of raw) ...")
+    for cls in ISIC2019_CLASSES:
+        raw_pct = 100.0 * raw_dist.get(cls, 0) / total_raw if total_raw > 0 else 0
+        split_pct = 100.0 * split_dist.get(cls, 0) / total_split if total_split > 0 else 0
+        diff = abs(split_pct - raw_pct)
+        if diff > 2.0:
+            print(f"      [WARN] {cls:6} deviated by {diff:.1f}% ({raw_pct:.1f}% -> {split_pct:.1f}%)")
+        else:
+            print(f"      [OK]   {cls:6} diff {diff:.1f}%")
 
 # ── Class weights ─────────────────────────────────────────────────────────────
 
@@ -539,10 +550,10 @@ def save_outputs(
 
     lines = [
         "=" * 65,
-        "ISIC 2019 Dataset Summary — Patient-Level Split",
+        "ISIC 2019 Dataset Summary — Lesion-Level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) Split",
         "=" * 65,
         f"Total images (after cleaning)  : {total:,}",
-        f"Total unique groups (patients) : {total_groups:,}",
+        f"Total unique groups (lesions) : {total_groups:,}",
         "",
         f"  Train : {len(train_df):,} images  ({100*len(train_df)/total:.1f}%)"
         f"  |  {train_df['group_id'].nunique():,} unique groups",
@@ -551,7 +562,7 @@ def save_outputs(
         f"  Test  : {len(test_df):,} images  ({100*len(test_df)/total:.1f}%)"
         f"  |  {test_df['group_id'].nunique():,} unique groups",
         "",
-        "Split method: StratifiedGroupKFold (patient-level, zero-overlap verified)",
+        "Split method: StratifiedGroupKFold (lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019), zero-overlap verified)",
         f"Random seed : {args.seed}",
         "",
         "-" * 65,
@@ -593,14 +604,14 @@ def save_outputs(
     lines += [
         "",
         "-" * 65,
-        "Patient overlap verification:",
+        "Lesion overlap verification:",
         "-" * 65,
         "  train ∩ val  : 0 groups  ✅",
         "  train ∩ test : 0 groups  ✅",
         "  val   ∩ test : 0 groups  ✅",
         "",
         "CSV columns: image, label, class_name, group_id",
-        "  group_id = patient_id for identified patients",
+        "  group_id = lesion_id for identified lesions",
         "  group_id = SYNTH_<image_id> for anonymous (MSK) images",
         "",
         "Files produced:",
@@ -625,7 +636,7 @@ def main() -> None:
     output_dir   = Path(args.output_dir) if args.output_dir else project_root / "data" / "processed"
 
     print("=" * 65)
-    print("ISIC 2019 Dataset Preparation — Patient-Level Split")
+    print("ISIC 2019 Dataset Preparation — Lesion-Level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) Split")
     print("=" * 65)
     print(f"Dataset root : {args.dataset_root}")
     print(f"Output dir : {output_dir}")
@@ -650,11 +661,11 @@ def main() -> None:
     df_for_dist["group_id"] = "N/A"   # placeholder so class_distribution works
     raw_dist = class_distribution(df_for_dist, label="(full dataset after cleaning)")
 
-    # ── Step 4: Assign patient group IDs ─────────────────────────────────────
+    # ── Step 4: Assign lesion group IDs ─────────────────────────────────────
     df = assign_group_ids(df, meta_csv)
 
-    # ── Step 5: Patient-level split ───────────────────────────────────────────
-    train_df, val_df, test_df = split_dataset_patient_level(
+    # ── Step 5: Lesion-level (grouped by lesion_id; lesion IDs are not provided in ISIC 2019) split ───────────────────────────────────────────
+    train_df, val_df, test_df = split_dataset_lesion_level(
         df, args.val_ratio, args.test_ratio, args.seed
     )
 
@@ -663,6 +674,13 @@ def main() -> None:
     train_dist = class_distribution(train_df, label="(train split)")
     val_dist   = class_distribution(val_df,   label="(validation split)")
     test_dist  = class_distribution(test_df,  label="(test split)")
+
+    # Verify proportions
+    total_raw = len(df_for_dist)
+    verify_class_proportions(raw_dist, train_dist, "Train", total_raw, len(train_df))
+    verify_class_proportions(raw_dist, val_dist, "Val", total_raw, len(val_df))
+    verify_class_proportions(raw_dist, test_dist, "Test", total_raw, len(test_df))
+
 
     # ── Step 6: Class weights ─────────────────────────────────────────────────
     weights = compute_class_weights(train_df)
