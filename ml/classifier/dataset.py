@@ -93,7 +93,7 @@ class ISICDataset(Dataset):
         if not self.img_dir.exists():
             raise FileNotFoundError(
                 f"Image directory not found: {self.img_dir}\n"
-                f"  Pass the correct --drive_root so img_dir resolves correctly."
+                f"  Pass the correct --dataset_root so img_dir resolves correctly."
             )
 
         log.info(f"Loaded {len(self.df):,} samples from {csv_path} | img_dir={self.img_dir}")

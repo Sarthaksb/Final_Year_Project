@@ -74,9 +74,9 @@ Our EfficientNet-B0 model was trained on the ISIC 2019 dataset, heavily prioriti
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| **Accuracy** | 86.4% | ✅ |
-| **Melanoma Recall** | 89.2% | ✅ |
-| **ROC-AUC (Macro)** | 0.931 | ✅ |
+| **Accuracy** | TBD: fill from real evaluate.py run after training | TBD |
+| **Melanoma Recall** | TBD: fill from real evaluate.py run after training | TBD |
+| **ROC-AUC (Macro)** | TBD: fill from real evaluate.py run after training | TBD |
 
 *For the complete report, including the confusion matrix and calibration details, see [Evaluation Results](docs/results.md).*
 

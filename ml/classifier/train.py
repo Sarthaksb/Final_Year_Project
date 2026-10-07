@@ -57,9 +57,12 @@ MEL_CLASS_IDX = ISIC2019_CLASSES.index("MEL")   # 0  — tracked separately ever
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Train ISIC 2019 skin lesion classifier")
 
-    p.add_argument("--drive_root", type=str,
-                   default="/content/drive/MyDrive/dermatology",
-                   help="Google Drive root containing dataset + checkpoints/")
+    p.add_argument("--dataset_root", type=str,
+                   default=os.environ.get("DATASET_ROOT", "/content/isic"),
+                   help="Root containing dataset images")
+    p.add_argument("--ckpt_dir", type=str,
+                   default="/content/drive/MyDrive/dermatology/checkpoints/",
+                   help="Google Drive directory for checkpoints/")
     p.add_argument("--data_dir", type=str, default=None,
                    help="Override path to processed CSVs (default: <project_root>/data/processed/)")
     p.add_argument("--epochs", type=int, default=10)
@@ -98,13 +101,13 @@ def mount_drive_if_colab() -> bool:
         return False
 
 
-def resolve_checkpoint_dir(drive_root: str) -> Path:
-    ckpt_dir = Path(drive_root) / "checkpoints"
-    ckpt_dir.mkdir(parents=True, exist_ok=True)
-    return ckpt_dir
+def resolve_checkpoint_dir(ckpt_dir: str) -> Path:
+    ckpt_path = Path(ckpt_dir)
+    ckpt_path.mkdir(parents=True, exist_ok=True)
+    return ckpt_path
 
 
-def resolve_data_dir(drive_root: str, data_dir_override: str | None) -> Path:
+def resolve_data_dir(data_dir_override: str | None) -> Path:
     if data_dir_override:
         return Path(data_dir_override)
     # Default: <project_root>/data/processed/
@@ -254,9 +257,9 @@ def main() -> None:
     # 1. Mount Drive if on Colab
     mount_drive_if_colab()
 
-    ckpt_dir  = resolve_checkpoint_dir(args.drive_root)
-    data_dir  = resolve_data_dir(args.drive_root, args.data_dir)
-    log_csv   = Path(args.drive_root) / "training_log.csv"
+    ckpt_dir  = resolve_checkpoint_dir(args.ckpt_dir)
+    data_dir  = resolve_data_dir(args.data_dir)
+    log_csv   = ckpt_dir.parent / "training_log.csv"
 
     train_csv = data_dir / "train.csv"
     val_csv   = data_dir / "val.csv"
@@ -267,8 +270,8 @@ def main() -> None:
             sys.exit(f"[ERROR] Required file not found: {f}\n"
                      f"  → Run data/prepare_dataset.py first.")
 
-    # Image directory: where the raw .jpg files live on Drive
-    img_dir = Path(args.drive_root) / "ISIC_2019_Training_Input"
+    # Image directory: where the raw .jpg files live
+    img_dir = Path(args.dataset_root) / "ISIC_2019_Training_Input"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info(f"Device: {device}")

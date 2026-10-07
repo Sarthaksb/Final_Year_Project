@@ -38,6 +38,7 @@ Run on Colab after mounting Drive:
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -68,10 +69,10 @@ CLASS_DESCRIPTIONS = {
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Prepare ISIC 2019 dataset")
     p.add_argument(
-        "--drive_root",
+        "--dataset_root",
         type=str,
-        default="/content/drive/MyDrive/dermatology",
-        help="Root folder on Google Drive containing the ISIC 2019 files",
+        default=os.environ.get("DATASET_ROOT", "/content/isic"),
+        help="Root folder containing the ISIC 2019 files",
     )
     p.add_argument(
         "--output_dir",
@@ -102,21 +103,20 @@ def parse_args() -> argparse.Namespace:
 
 # ── Path resolution ───────────────────────────────────────────────────────────
 
-def resolve_paths(drive_root: str) -> tuple[Path, Path, Path, Path]:
+def resolve_paths(dataset_root: str) -> tuple[Path, Path, Path, Path]:
     """
-    Return (image_dir, ground_truth_csv, metadata_csv, drive_root_path).
+    Return (image_dir, ground_truth_csv, metadata_csv, root_path).
     Hard-stops if required files are missing.
     """
-    root        = Path(drive_root)
+    root        = Path(dataset_root)
     img_dir     = root / "ISIC_2019_Training_Input"
     gt_csv      = root / "ISIC_2019_Training_GroundTruth.csv"
     meta_csv    = root / "ISIC_2019_Training_Metadata.csv"
 
     if not root.exists():
         sys.exit(
-            f"\n[ERROR] Drive root not found: {root}\n"
-            "  → Make sure Google Drive is mounted and --drive_root is correct.\n"
-            "  → Colab: run `from google.colab import drive; drive.mount('/content/drive')`"
+            f"\n[ERROR] Dataset root not found: {root}\n"
+            "  → Make sure the dataset is extracted and --dataset_root is correct."
         )
     if not img_dir.exists():
         sys.exit(
@@ -627,12 +627,12 @@ def main() -> None:
     print("=" * 65)
     print("ISIC 2019 Dataset Preparation — Patient-Level Split")
     print("=" * 65)
-    print(f"Drive root : {args.drive_root}")
+    print(f"Dataset root : {args.dataset_root}")
     print(f"Output dir : {output_dir}")
     print(f"Seed       : {args.seed}")
 
     # ── Step 0: Resolve and validate all required paths ───────────────────────
-    img_dir, gt_csv, meta_csv, _ = resolve_paths(args.drive_root)
+    img_dir, gt_csv, meta_csv, _ = resolve_paths(args.dataset_root)
 
     # ── Step 1: Load and clean labels ─────────────────────────────────────────
     print(f"\n[0/5] Loading ground-truth CSV: {gt_csv} ...")
@@ -676,7 +676,7 @@ def main() -> None:
 
     print("\n✅ Dataset preparation complete.")
     print(f"   CSV columns : image, label, class_name, group_id")
-    print(f"   Next step   : run ml/classifier/train.py --drive_root {args.drive_root}")
+    print(f"   Next step   : run ml/classifier/train.py --dataset_root {args.dataset_root}")
 
 
 if __name__ == "__main__":

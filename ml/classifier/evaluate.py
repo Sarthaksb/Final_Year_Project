@@ -22,6 +22,8 @@ Run on Colab:
 """
 
 import argparse
+import json
+import os
 import sys
 from pathlib import Path
 
@@ -52,12 +54,14 @@ MEL_RECALL_THRESHOLD = 0.80   # minimum acceptable for clinical use
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Evaluate ISIC 2019 classifier on test set")
-    p.add_argument("--drive_root", type=str,
-                   default="/content/drive/MyDrive/dermatology")
+    p.add_argument("--dataset_root", type=str,
+                   default=os.environ.get("DATASET_ROOT", "/content/isic"))
+    p.add_argument("--ckpt_dir", type=str,
+                   default="/content/drive/MyDrive/dermatology/checkpoints/")
     p.add_argument("--data_dir", type=str, default=None,
                    help="Path to processed CSVs (default: <project_root>/data/processed/)")
     p.add_argument("--checkpoint", type=str, default="best_model.pt",
-                   help="Checkpoint filename inside <drive_root>/checkpoints/")
+                   help="Checkpoint filename inside ckpt_dir")
     p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--num_workers", type=int, default=2)
     return p.parse_args()
@@ -164,62 +168,69 @@ def plot_roc_curves(y_true, y_probs, out_path: Path) -> dict[str, float]:
 def build_report(
     y_true, y_pred, y_probs,
     auc_scores: dict,
-    out_path: Path,
+    out_dir: Path,
     ece: float = 0.0,
 ) -> None:
-    report = classification_report(
+    from sklearn.metrics import recall_score, precision_score
+    
+    report_dict = classification_report(
         y_true, y_pred,
         target_names=ISIC2019_CLASSES,
-        digits=4,
+        output_dict=True,
+        zero_division=0
     )
-
+    
     overall_acc = (y_true == y_pred).mean()
+    bal_acc = recall_score(y_true, y_pred, average='macro', zero_division=0)
+    
     mel_recall = (
         (y_pred[y_true == MEL_IDX] == MEL_IDX).mean()
         if (y_true == MEL_IDX).any() else 0.0
     )
-
-    mel_flag = (
-        "✅ PASS (≥0.80)" if mel_recall >= MEL_RECALL_THRESHOLD
-        else f"⚠️  FAIL (<0.80) — model may miss melanomas in production"
+    
+    non_mel_mask = y_true != MEL_IDX
+    mel_spec = (
+        (y_pred[non_mel_mask] != MEL_IDX).mean()
+        if non_mel_mask.any() else 0.0
     )
+    
+    # malignant vs benign sensitivity @ 95% spec
+    # Let's say malignant classes are MEL, BCC, SCC.
+    malignant_classes = {"MEL", "BCC", "SCC"}
+    malignant_indices = [i for i, c in enumerate(ISIC2019_CLASSES) if c in malignant_classes]
+    
+    is_malignant_true = np.isin(y_true, malignant_indices)
+    p_malignant = y_probs[:, malignant_indices].sum(axis=1)
+    
+    from sklearn.metrics import roc_curve
+    fpr, tpr, thresholds = roc_curve(is_malignant_true, p_malignant)
+    idx_95_spec = np.where(fpr <= 0.05)[0]
+    sens_at_95_spec = tpr[idx_95_spec[-1]] if len(idx_95_spec) > 0 else 0.0
+    
+    results = {
+        "accuracy": overall_acc,
+        "balanced_accuracy": bal_acc,
+        "mel_recall": mel_recall,
+        "mel_specificity": mel_spec,
+        "sensitivity_at_95_specificity_malignant": sens_at_95_spec,
+        "ece": ece,
+        "roc_auc_per_class": auc_scores,
+        "per_class_metrics": {
+            cls: {
+                "recall": report_dict[cls]["recall"],
+                "precision": report_dict[cls]["precision"]
+            }
+            for cls in ISIC2019_CLASSES if cls in report_dict
+        }
+    }
+    
+    out_json = out_dir / "real_results.json"
+    with open(out_json, "w") as f:
+        json.dump(results, f, indent=4)
+        
+    log.info(f"Evaluation report saved → {out_json}")
 
-    lines = [
-        "=" * 65,
-        "ISIC 2019 Classifier -- Test Set Evaluation",
-        "=" * 65,
-        f"Overall Accuracy : {overall_acc:.4f}",
-        f"ECE (calibration) : {ece:.4f}  (lower is better; 0 = perfect)",
-        "",
-        f"* Melanoma (MEL) Recall : {mel_recall:.4f}  ->  {mel_flag}",
-        "  (Threshold: 0.80 -- missing melanoma = life-threatening false negative)",
-        "",
-        "-" * 65,
-        "Per-Class Classification Report:",
-        "-" * 65,
-        report,
-        "-" * 65,
-        "ROC-AUC (one-vs-rest, per class):",
-        "-" * 65,
-    ]
-    for cls in ISIC2019_CLASSES:
-        prefix = "  ★" if cls == "MEL" else "   "
-        lines.append(f"{prefix} {cls:<6}  AUC = {auc_scores.get(cls, 0.0):.4f}")
 
-    lines += [
-        "",
-        "=" * 65,
-        "Output files:",
-        "  evaluation_report.txt",
-        "  confusion_matrix.png",
-        "  roc_curves.png",
-        "=" * 65,
-    ]
-
-    text = "\n".join(lines)
-    print(text)
-    out_path.write_text(text, encoding="utf-8")
-    log.info(f"Evaluation report saved → {out_path}")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -227,9 +238,9 @@ def build_report(
 def main() -> None:
     args = parse_args()
 
-    drive_root = Path(args.drive_root)
-    ckpt_path  = drive_root / "checkpoints" / args.checkpoint
-    out_dir    = drive_root / "evaluation"
+    ckpt_dir = Path(args.ckpt_dir)
+    ckpt_path  = ckpt_dir / args.checkpoint
+    out_dir    = ckpt_dir.parent / "evaluation"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not ckpt_path.exists():
@@ -241,8 +252,8 @@ def main() -> None:
     # Data
     project_root = Path(__file__).resolve().parent.parent.parent
     data_dir = Path(args.data_dir) if args.data_dir else project_root / "data" / "processed"
-    # Image directory: where the raw .jpg files live on Drive
-    img_dir = drive_root / "ISIC_2019_Training_Input"
+    # Image directory: where the raw .jpg files live
+    img_dir = Path(args.dataset_root) / "ISIC_2019_Training_Input"
     loaders = get_dataloaders(
         train_csv=data_dir / "train.csv",
         val_csv=data_dir / "val.csv",
@@ -268,11 +279,16 @@ def main() -> None:
     log.info("ECE = %.4f", ece)
 
     # Plots
-    plot_confusion_matrix(y_true, y_pred, out_dir / "confusion_matrix.png")
-    auc_scores = plot_roc_curves(y_true, y_probs, out_dir / "roc_curves.png")
+    project_root = Path(__file__).resolve().parent.parent.parent
+    figures_dir = project_root / "docs" / "figures"
+    docs_dir = project_root / "docs"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    
+    plot_confusion_matrix(y_true, y_pred, figures_dir / "confusion_matrix.png")
+    auc_scores = plot_roc_curves(y_true, y_probs, figures_dir / "roc_curves.png")
 
     # Report
-    build_report(y_true, y_pred, y_probs, auc_scores, out_dir / "evaluation_report.txt", ece=ece)
+    build_report(y_true, y_pred, y_probs, auc_scores, docs_dir, ece=ece)
 
 
 if __name__ == "__main__":
